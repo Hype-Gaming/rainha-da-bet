@@ -1,0 +1,94 @@
+/* Tema premium dark do painel admin (tokens + animações). */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+
+:root {
+  --adm-bg: #07090f;
+  --adm-bg-2: #0b0e16;
+  --adm-panel: #0e1320;
+  --adm-panel-2: #121829;
+  --adm-border: #1d2740;
+  --adm-border-soft: #161d30;
+  --adm-text: #eef2fb;
+  --adm-muted: #8a93ab;
+  --adm-faint: #5b647c;
+  --adm-accent: #fb65a6;
+  --adm-accent-soft: rgba(251, 101, 166, 0.14);
+  --adm-accent-2: #38e0ff;
+  --adm-gold: #f5c451;
+  --adm-green: #2dd4a7;
+  --adm-red: #ff5d6c;
+  --adm-amber: #f8a13a;
+  --adm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --adm-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --adm-glow: 0 0 0 1px rgba(251, 101, 166, 0.16), 0 12px 40px rgba(251, 101, 166, 0.1);
+  --adm-grad-accent: linear-gradient(135deg, #fb65a6, #ff8cc4);
+}
+
+.adm-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 44% at 12% -4%, rgba(251, 101, 166, 0.16), transparent 60%),
+    radial-gradient(48% 42% at 102% 6%, rgba(56, 224, 255, 0.1), transparent 60%),
+    radial-gradient(70% 60% at 50% 128%, rgba(245, 196, 81, 0.07), transparent 62%);
+}
+
+/* fina textura de grade — dá profundidade sem pesar */
+.adm-aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(80% 60% at 50% 0%, #000, transparent 75%);
+  -webkit-mask-image: radial-gradient(80% 60% at 50% 0%, #000, transparent 75%);
+}
+
+@keyframes admin-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes admin-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes admin-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 101, 166, 0.4); }
+  50% { box-shadow: 0 0 22px 6px rgba(251, 101, 166, 0); }
+}
+
+@keyframes admin-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes admin-toast-timer {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.adm-fade-up { animation: admin-fade-up 0.5s var(--adm-ease) both; }
+
+.adm-skeleton {
+  background: linear-gradient(90deg, var(--adm-panel-2) 25%, #1a2236 37%, var(--adm-panel-2) 63%);
+  background-size: 200% 100%;
+  animation: admin-shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
+/* Scrollbar dark */
+.adm-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+.adm-scroll::-webkit-scrollbar-track { background: transparent; }
+.adm-scroll::-webkit-scrollbar-thumb { background: #243149; border-radius: 8px; }
+.adm-scroll::-webkit-scrollbar-thumb:hover { background: #2f3f5e; }
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-fade-up,
+  .adm-skeleton { animation: none !important; }
+}

@@ -1,0 +1,33 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  background: #ffffff;
+}
+
+body {
+  font-family: 'Manrope', 'Space Grotesk', sans-serif;
+  background: #ffffff;
+  color: #000000;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#__nuxt {
+  background: #ffffff;
+  min-height: 100vh;
+}
+
+:root {
+  --color-primary: #2ab885;
+  --color-secondary: #ffb300;
+  --color-bg-light: #ffffff;
+  --color-bg-dark: #001a10;
+  --color-text: #000000;
+  --color-text-light: #ffffff;
+  --color-text-muted: #8f8f8f;
+}

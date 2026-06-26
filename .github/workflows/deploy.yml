@@ -1,0 +1,45 @@
+name: Deploy to VPS
+
+# Dispara ao dar push na main (merge da feature) e permite rodar manualmente.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Garante que dois deploys do mesmo branch não rodem ao mesmo tempo.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH + git pull na VPS
+    runs-on: ubuntu-latest
+    steps:
+      # Só precisamos do repo no runner para ler o script remoto abaixo.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          PORT="${VPS_PORT:-22}"
+          ssh-keyscan -p "$PORT" "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy (git pull + build + pm2 reload na VPS)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          set -euo pipefail
+          PORT="${VPS_PORT:-22}"
+          ssh -i ~/.ssh/id_deploy -p "$PORT" -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -s' < .github/scripts/vps-deploy.sh
