@@ -1,6 +1,5 @@
 // Fonte única das marcas suportadas no login (Cactus).
 // Usado tanto no client (composables) quanto no server (validação admin).
-// esportiva e bateu compartilham host e domínio; mudam slug e coleção de usuários.
 
 export interface BrandConfig {
   slug: string
@@ -20,14 +19,6 @@ export const BRANDS: BrandConfig[] = [
     apiBaseUrl: 'https://routes-eb.grupoautoma.com',
     userCollection: 'users_eb',
     affiliateUrl: 'https://esportiva.bet.br/?src=uvsmqnryjtwjvnlaakjynnnrf&utm_source=381780'
-  },
-  {
-    slug: 'bateu',
-    name: 'Bateu Bet',
-    baseDomain: 'bet.br',
-    apiBaseUrl: 'https://routes-eb.grupoautoma.com',
-    userCollection: 'users_bb',
-    affiliateUrl: 'https://go.aff.bateu.bet.br/ksjauq7x'
   }
 ]
 

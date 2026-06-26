@@ -11,8 +11,7 @@
                 <Icon name="ph:info-bold" />
                 <span
                     >Use suas credenciais da
-                    <strong>esportiva.bet.br</strong> ou
-                    <strong>bateu.bet.br</strong></span
+                    <strong>esportiva.bet.br</strong></span
                 >
             </div>
 

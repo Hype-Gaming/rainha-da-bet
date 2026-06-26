@@ -1,9 +1,8 @@
 // Composable de Autenticação - Irmandade Club
 // Integração com API Cactus
 //
-// Suporta múltiplas marcas (esportiva e bateu): no login o app tenta cada marca
-// até uma autenticar. A marca que logou fica guardada na sessão e é usada nas
-// chamadas seguintes (perfil, jogo, depósito, validação admin).
+// Marca única (esportiva): o login autentica contra ela e a marca fica guardada
+// na sessão, usada nas chamadas seguintes (perfil, jogo, depósito, validação admin).
 
 import { BRANDS, DEFAULT_BRAND, getBrand } from '../../shared/brands'
 
@@ -207,7 +206,7 @@ export const useAuth = () => {
     let lastError: any = null
 
     try {
-      // Tenta cada marca (esportiva, bateu) até uma autenticar.
+      // Autentica contra a(s) marca(s) configurada(s) — hoje só esportiva.
       for (const brand of BRANDS) {
         const body: Record<string, any> = {
           password: credentials.password,
