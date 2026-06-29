@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 // 🔧 SUPORTE: troque pelo número real (só dígitos, com DDI). Ex.: 55 11 99999-9999 → "5511999999999"
-const SUPPORT_WHATSAPP = "55557199359623";
+const SUPPORT_WHATSAPP = "5571993870957";
 
 const { logout } = useAuth();
 const { setBlocked } = useAccountBlocked();
