@@ -21,16 +21,21 @@
 </template>
 
 <script setup lang="ts">
-// 🔧 SUPORTE: troque pelo número real (só dígitos, com DDI). Ex.: 55 11 99999-9999 → "5511999999999"
-const SUPPORT_WHATSAPP = "5571993870957";
+// Link de suporte configurável pelo admin (/api/settings/support). Fallback usa o link padrão.
+const FALLBACK_SUPPORT_LINK = "https://wa.me/message/OH4WKRTTXBF2D1";
+const supportLink = ref(FALLBACK_SUPPORT_LINK);
 
 const { logout } = useAuth();
 const { setBlocked } = useAccountBlocked();
 
-const supportLink = computed(() => {
-    const msg = "Oi%2C+preciso+desbloquear+meu+aplicativo";
-    return `https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`;
-});
+const loadSupportLink = async () => {
+    try {
+        const res = await $fetch<{ href: string }>("/api/settings/support");
+        if (res?.href) supportLink.value = res.href;
+    } catch {
+        // mantém o fallback
+    }
+};
 
 // X: fecha o overlay e volta para a tela de autenticação (logout redireciona pro login).
 const onLogout = async () => {
@@ -41,6 +46,7 @@ const onLogout = async () => {
 // Trava o scroll do body enquanto o overlay estiver ativo.
 onMounted(() => {
     if (import.meta.client) document.body.style.overflow = "hidden";
+    loadSupportLink();
 });
 onUnmounted(() => {
     if (import.meta.client) document.body.style.overflow = "";

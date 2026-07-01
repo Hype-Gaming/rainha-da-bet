@@ -292,6 +292,31 @@
                     </button>
                 </div>
             </section>
+
+            <!-- Configurações -->
+            <section class="adm-section adm-panel">
+                <div class="adm-panel-head">
+                    <h2><Icon name="ph:gear-six-bold" /> Configurações</h2>
+                </div>
+                <label class="adm-field-label">WhatsApp de suporte (link ou número)</label>
+                <div class="adm-ftd">
+                    <input
+                        v-model="supportInput"
+                        type="text"
+                        placeholder="https://wa.me/message/XXXX ou 5571993870957"
+                        class="adm-input"
+                    />
+                    <button class="adm-btn-primary" :disabled="savingSupport" @click="saveSupport">
+                        <Icon name="ph:check-bold" /> Salvar
+                    </button>
+                </div>
+                <p class="adm-field-hint">
+                    Botão "Falar com o suporte" na tela de bloqueio.
+                    <a v-if="supportHref" :href="supportHref" target="_blank" rel="noopener" class="adm-wa">
+                        <Icon name="ph:whatsapp-logo-bold" /> testar link
+                    </a>
+                </p>
+            </section>
         </div>
 
         <!-- Modal bloqueio -->
@@ -382,6 +407,11 @@ const activityError = ref<string | null>(null);
 // --- FTD ---
 const ftd = reactive({ email: "", amount: null as number | null });
 const savingFtd = ref(false);
+
+// --- Configurações ---
+const supportInput = ref("");
+const supportHref = ref("");
+const savingSupport = ref(false);
 
 const busyEmail = ref<string | null>(null);
 const blockTarget = ref<AppUser | null>(null);
@@ -497,7 +527,31 @@ const fetchActivity = async () => {
     }
 };
 
-const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity()]);
+const fetchSupport = async () => {
+    try {
+        const res = await $fetch<{ value: string; href: string }>("/api/settings/support");
+        supportInput.value = res.value;
+        supportHref.value = res.href;
+    } catch { /* silencioso */ }
+};
+
+const saveSupport = async () => {
+    savingSupport.value = true;
+    try {
+        const res = await adminFetch<{ href: string }>("/api/admin/settings/support", {
+            method: "POST",
+            body: { value: supportInput.value.trim() },
+        });
+        supportHref.value = res.href;
+        showToast("Suporte salvo.");
+    } catch {
+        showToast("Erro ao salvar suporte.", "error");
+    } finally {
+        savingSupport.value = false;
+    }
+};
+
+const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity(), fetchSupport()]);
 
 // --- Filtros (debounce na busca) ---
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -841,6 +895,9 @@ useHead({ title: "Painel Admin - Rainha da Bet" });
 .adm-more { text-align: center; margin-top: 14px; }
 .adm-ftd { display: flex; gap: 10px; flex-wrap: wrap; }
 .adm-ftd .adm-input { flex: 1; min-width: 180px; }
+.adm-field-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--adm-muted); margin-bottom: 8px; }
+.adm-field-hint { margin-top: 10px; font-size: 12.5px; color: var(--adm-faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm-field-hint .adm-wa { font-size: 12.5px; }
 .adm-btn-primary {
     display: inline-flex; align-items: center; gap: 7px;
     background: var(--adm-accent); color: #1a0410; border: none;
