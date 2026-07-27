@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { hmac, safeCompareSecret } from './signing'
 
 // Auth do painel admin — INDEPENDENTE do Cactus.
 // Login = e-mail (na allowlist ADMIN_EMAILS) + senha (ADMIN_PASSWORD), ambos do .env.
@@ -17,8 +17,7 @@ const getAdminEmails = (): string[] =>
 // (trocar a senha invalida todas as sessões — efeito desejado).
 const getSecret = (): string => process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || ''
 
-const sign = (payloadB64: string, secret: string): string =>
-  createHmac('sha256', secret).update(payloadB64).digest('base64url')
+const sign = (payloadB64: string, secret: string): string => hmac(payloadB64, secret)
 
 export const isAdminEmail = (email: string): boolean =>
   getAdminEmails().includes(email.trim().toLowerCase())
@@ -28,7 +27,16 @@ export const validateAdminCredentials = (email: string, password: string): boole
   const emails = getAdminEmails()
   const expectedPw = process.env.ADMIN_PASSWORD || ''
   if (!emails.length || !expectedPw) return false
-  return emails.includes(email.trim().toLowerCase()) && password === expectedPw
+
+  // A comparação da senha é em tempo constante. Com `===`, o tempo de resposta
+  // cresce conforme o atacante acerta o prefixo — o que permite descobrir a senha
+  // caractere a caractere. O token já usava comparação segura; a senha não.
+  const emailOk = emails.includes(email.trim().toLowerCase())
+  const passwordOk = safeCompareSecret(password, expectedPw)
+
+  // Sem short-circuit: as duas checagens sempre rodam, para o tempo de resposta
+  // não revelar se o e-mail existe na allowlist.
+  return emailOk && passwordOk
 }
 
 /** Emite um token de sessão assinado para o admin. */
@@ -46,10 +54,7 @@ export const verifyAdminToken = (token: string | undefined, now = Date.now()): s
   const [payloadB64, sig] = token.split('.')
   if (!payloadB64 || !sig) return null
 
-  const expected = sign(payloadB64, secret)
-  const a = Buffer.from(sig)
-  const b = Buffer.from(expected)
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null
+  if (!safeCompareSecret(sig, sign(payloadB64, secret))) return null
 
   let payload: { email?: string; exp?: number }
   try {
