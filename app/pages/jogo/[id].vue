@@ -443,6 +443,8 @@ import { getCatalogadorQueries, getGameRouteConfig, resolveGameRouteId } from '.
 
 const route = useRoute()
 const { isAuthenticated } = useAuth()
+// apiFetch: reabre a sessão do servidor e repete a chamada se ela tiver expirado.
+const { apiFetch } = useApi()
 const { startGame, fetchGameConfig, gameSignalConfig, isLoading: isLoadingGame, error: gameError } = useGame()
 
 // ID do jogo baseado na rota
@@ -1276,7 +1278,7 @@ const fetchResults = async () => {
     let response: CatalogadorResponse | null = null
 
     for (const cfg of configs) {
-      const candidate = await $fetch<CatalogadorResponse>(
+      const candidate = await apiFetch<CatalogadorResponse>(
         CATALOGADOR_ENDPOINT,
         {
           cache: 'no-store',

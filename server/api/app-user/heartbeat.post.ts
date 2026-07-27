@@ -1,31 +1,30 @@
 import { getDb } from '../../utils/mongodb'
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { requireUser } from '../../utils/session'
 
 /**
- * Registra a presença de um usuário autenticado no app (heartbeat).
+ * Registra a presença do usuário autenticado no app (heartbeat).
  * Cria/atualiza o documento em app_users — primeira vez grava first_seen_at;
  * toda chamada atualiza last_seen_at. Alimenta a tabela de usuários do painel admin.
+ *
+ * A identidade vem EXCLUSIVAMENTE da sessão. Antes vinha do body, o que permitia a
+ * qualquer um criar usuários fantasma (poluindo as métricas do painel) e, pior,
+ * sobrescrever nome e telefone de usuários reais.
  */
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-
-  const email = String(body?.email || '').trim().toLowerCase()
-  if (!email || !EMAIL_RE.test(email)) {
-    throw createError({ statusCode: 400, message: 'Email inválido' })
-  }
+  const session = requireUser(event)
 
   const now = new Date()
-  const set: Record<string, unknown> = { email, last_seen_at: now }
+  const set: Record<string, unknown> = { email: session.email, last_seen_at: now }
 
-  if (body?.name) set.name = String(body.name).trim()
-  if (body?.phone) set.phone = String(body.phone).trim()
-  if (body?.brand_slug) set.brand_slug = String(body.brand_slug).trim()
-  if (body?.cactus_user_id != null) set.cactus_user_id = body.cactus_user_id
+  // Dados do perfil confirmado pelo Cactus, não do corpo da requisição.
+  if (session.name) set.name = session.name
+  if (session.phone) set.phone = session.phone
+  if (session.brandSlug) set.brand_slug = session.brandSlug
+  if (session.cactusUserId != null) set.cactus_user_id = session.cactusUserId
 
   const db = await getDb()
   const doc = await db.collection('app_users').findOneAndUpdate(
-    { email },
+    { email: session.email },
     {
       $set: set,
       $setOnInsert: { first_seen_at: now, blocked: false }
