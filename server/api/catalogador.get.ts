@@ -1,4 +1,6 @@
-import { requirePaidUser } from '../utils/subscriptions'
+import { requireUser } from '../utils/session'
+import { assertActiveSubscription } from '../utils/subscriptions'
+import { isFreeCatalogadorTarget } from '../../shared/catalogadorAccess'
 import { getClientIp, rateLimit } from '../utils/rateLimit'
 
 const CATALOGADOR_BASE = 'https://casino-data.grupoautoma.com'
@@ -20,9 +22,13 @@ const MAX_LIMIT = 2000
 const DEFAULT_LIMIT = 2000
 
 export default defineEventHandler(async (event) => {
-  const session = await requirePaidUser(event)
+  // Sessão é SEMPRE exigida: é o que impede a internet inteira de baixar o
+  // conteúdo sem login. A assinatura é checada mais abaixo, e só para os jogos
+  // que não são livres — o jogo livre é o funil de aquisição e precisa continuar
+  // funcionando para quem ainda não assinou.
+  const session = requireUser(event)
 
-  // Assinante legítimo abre poucos jogos; este teto só incomoda quem está raspando.
+  // Usuário legítimo abre poucos jogos; este teto só incomoda quem está raspando.
   rateLimit({
     key: `catalogador:${session.email}`,
     limit: 120,
@@ -50,6 +56,13 @@ export default defineEventHandler(async (event) => {
       statusCode: 400,
       message: 'collection e game são obrigatórios'
     })
+  }
+
+  // O gate de assinatura pertence ao JOGO pedido, não ao endpoint: o catalogador
+  // serve tanto o jogo livre quanto os premium. A lista de livres está em
+  // shared/catalogadorAccess.ts e precisa espelhar o bloco "Prime" da home.
+  if (!isFreeCatalogadorTarget(collection, game)) {
+    await assertActiveSubscription(session.email)
   }
 
   return await $fetch(`${CATALOGADOR_BASE}/results`, {

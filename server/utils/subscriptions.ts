@@ -51,15 +51,15 @@ export const getSubscriptionState = async (sessionEmail: string): Promise<Subscr
 }
 
 /**
- * Portão do conteúdo pago: exige sessão válida E assinatura ativa.
+ * Exige assinatura ativa para uma sessão já validada.
  *
- * É a checagem que faltava — antes o gate existia só no navegador (middleware de
- * rota), o que qualquer um contorna. Middleware de rota é experiência de usuário;
- * a fronteira de verdade é esta, no servidor.
+ * Separado de `requireUser` de propósito: nem todo conteúdo protegido é conteúdo
+ * PAGO. O catalogador, por exemplo, serve tanto o jogo livre (funil de aquisição)
+ * quanto os jogos premium — lá a sessão é sempre exigida, mas a assinatura só
+ * quando o jogo pedido não é livre.
  */
-export const requirePaidUser = async (event: H3Event): Promise<UserSession> => {
-  const session = requireUser(event)
-  const state = await getSubscriptionState(session.email)
+export const assertActiveSubscription = async (email: string): Promise<void> => {
+  const state = await getSubscriptionState(email)
 
   if (!state.active) {
     throw createError({
@@ -68,7 +68,18 @@ export const requirePaidUser = async (event: H3Event): Promise<UserSession> => {
       data: { needSubscription: !state.blocked, blocked: state.blocked }
     })
   }
+}
 
+/**
+ * Portão do conteúdo integralmente pago: exige sessão válida E assinatura ativa.
+ *
+ * É a checagem que faltava — antes o gate existia só no navegador (middleware de
+ * rota), o que qualquer um contorna. Middleware de rota é experiência de usuário;
+ * a fronteira de verdade é esta, no servidor.
+ */
+export const requirePaidUser = async (event: H3Event): Promise<UserSession> => {
+  const session = requireUser(event)
+  await assertActiveSubscription(session.email)
   return session
 }
 
