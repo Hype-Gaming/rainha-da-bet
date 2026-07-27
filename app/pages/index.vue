@@ -391,7 +391,8 @@ const socialLinks = {
 
 const refreshSubscriptionAccess = async (force = false) => {
     if (!isAuthenticated.value) return;
-    await initSubscription(user.value?.email || null, { force });
+    // Sem e-mail: o servidor identifica o usuário pela sessão.
+    await initSubscription({ force });
 };
 
 const handleWindowFocus = () => {
