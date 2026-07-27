@@ -2,10 +2,18 @@ const SUBSCRIPTION_SESSION_KEY = 'irmandade_subscription'
 const MODAL_DISMISSED_KEY = 'irmandade_modal_dismissed'
 const CACHE_TTL_MS = 5 * 60 * 1000
 
+// Duas operações distintas, propositalmente com nomes distintos:
+//
+//   refresh()            -> "qual é o MEU estado?"   (servidor lê o e-mail da sessão)
+//   linkSubscription(e)  -> "esta compra é minha"    (vincula o e-mail da Lastlink)
+//
+// Antes as duas eram a mesma função recebendo um e-mail arbitrário — e era
+// exatamente essa confusão que permitia consultar a assinatura de qualquer pessoa.
+
 interface SubscriptionCache {
   active: boolean
   role: 'paid' | 'free'
-  email: string
+  email: string | null
   blocked: boolean
   ts: number
 }
@@ -43,9 +51,12 @@ const loadCache = (): SubscriptionCache | null => {
   }
 }
 
-const saveCache = (email: string, active: boolean, role: 'paid' | 'free', blocked: boolean) => {
+const saveCache = (email: string | null, active: boolean, role: 'paid' | 'free', blocked: boolean) => {
   if (!import.meta.client) return
-  sessionStorage.setItem(SUBSCRIPTION_SESSION_KEY, JSON.stringify({ active, role, email, blocked, ts: Date.now() }))
+  sessionStorage.setItem(
+    SUBSCRIPTION_SESSION_KEY,
+    JSON.stringify({ active, role, email, blocked, ts: Date.now() })
+  )
 }
 
 export const clearSubscriptionCache = () => {
@@ -54,50 +65,85 @@ export const clearSubscriptionCache = () => {
   sessionStorage.removeItem(MODAL_DISMISSED_KEY)
 }
 
+interface SubscriptionResponse {
+  active: boolean
+  role: 'paid' | 'free'
+  blocked?: boolean
+  status?: string | null
+}
+
 export const useSubscription = () => {
   const checking = ref(false)
   const error = ref('')
+  const { apiFetch } = useApi()
 
-  const init = async (email?: string | null, options: { force?: boolean } = {}) => {
-    if (!import.meta.client) return
-
-    const cache = loadCache()
-    const hasFreshMatchingCache =
-      !options.force &&
-      cache &&
-      Date.now() - cache.ts < CACHE_TTL_MS &&
-      (!email || cache.email === email)
-
-    if (hasFreshMatchingCache) {
-      applySubscriptionState(cache.email, cache.active, cache.role ?? (cache.active ? 'paid' : 'free'), !!cache.blocked)
-      return cache.active
-    }
-
-    if (email) {
-      return await checkSubscription(email)
-    }
-
-    // Sem cache: abre o modal sempre
-    subscriptionState.showModal = true
-    subscriptionState.checked = true
-    return false
-  }
-
-  const checkSubscription = async (email: string): Promise<boolean> => {
+  /** Consulta o estado do usuário logado (sem parâmetros: o servidor sabe quem é). */
+  const refresh = async (): Promise<boolean> => {
     checking.value = true
     error.value = ''
     try {
-      const result = await $fetch<{ active: boolean; role: 'paid' | 'free'; blocked?: boolean }>('/api/subscription/check', {
-        params: { email }
-      })
-      // Bloqueio do painel admin trava o app inteiro (overlay em app.vue) e suprime o modal.
+      const result = await apiFetch<SubscriptionResponse>('/api/subscription/check')
       const blocked = !!result.blocked
       const role = result.role ?? (result.active ? 'paid' : 'free')
+      const email = subscriptionState.email
       saveCache(email, result.active, role, blocked)
       applySubscriptionState(email, result.active, role, blocked)
       return result.active
-    } catch {
+    } catch (err: any) {
+      const status = err?.status || err?.statusCode
+      // 401 = sem sessão no servidor. Não é falha de assinatura: trata como
+      // "não assinante" e deixa o modal aparecer, sem mensagem de erro assustando.
+      if (status === 401) {
+        applySubscriptionState(null, false, 'free', false)
+        return false
+      }
       error.value = 'Erro ao verificar. Tente novamente.'
+      return false
+    } finally {
+      checking.value = false
+    }
+  }
+
+  const init = async (options: { force?: boolean } = {}) => {
+    if (!import.meta.client) return false
+
+    const cache = loadCache()
+    if (!options.force && cache && Date.now() - cache.ts < CACHE_TTL_MS) {
+      applySubscriptionState(
+        cache.email,
+        cache.active,
+        cache.role ?? (cache.active ? 'paid' : 'free'),
+        !!cache.blocked
+      )
+      return cache.active
+    }
+
+    return await refresh()
+  }
+
+  /** Comprova a compra: vincula o e-mail da Lastlink à conta logada. */
+  const linkSubscription = async (email: string): Promise<boolean> => {
+    checking.value = true
+    error.value = ''
+    try {
+      const result = await apiFetch<SubscriptionResponse>('/api/subscription/link', {
+        method: 'POST',
+        body: { email }
+      })
+
+      if (!result.active) return false
+
+      const role = result.role ?? 'paid'
+      const blocked = !!result.blocked
+      saveCache(email, true, role, blocked)
+      applySubscriptionState(email, true, role, blocked)
+      return true
+    } catch (err: any) {
+      const status = err?.status || err?.statusCode
+      error.value =
+        status === 429
+          ? 'Muitas tentativas. Aguarde alguns minutos.'
+          : 'Erro ao verificar. Tente novamente.'
       return false
     } finally {
       checking.value = false
@@ -125,7 +171,8 @@ export const useSubscription = () => {
     checking: readonly(checking),
     error: readonly(error),
     init,
-    checkSubscription,
+    refresh,
+    linkSubscription,
     dismissModal,
     openModal
   }

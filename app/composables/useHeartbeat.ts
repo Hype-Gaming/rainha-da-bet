@@ -1,21 +1,17 @@
 // Registra a presença do usuário logado no app (alimenta app_users / painel admin).
+//
+// O corpo não carrega mais e-mail/nome/telefone: o servidor lê tudo da sessão.
+// Mandar identidade pelo body era exatamente o que permitia forjar usuários.
 export const useHeartbeat = () => {
-  const { user, brandSlug } = useAuth()
+  const { user } = useAuth()
   const { setBlocked } = useAccountBlocked()
+  const { apiFetch } = useApi()
 
   const send = async () => {
-    const u = user.value
-    if (!u?.email) return
+    if (!user.value?.email) return
     try {
-      const res = await $fetch<{ ok: boolean; blocked?: boolean }>('/api/app-user/heartbeat', {
-        method: 'POST',
-        body: {
-          email: u.email,
-          name: u.name,
-          phone: u.phone,
-          brand_slug: brandSlug.value,
-          cactus_user_id: u.id
-        }
+      const res = await apiFetch<{ ok: boolean; blocked?: boolean }>('/api/app-user/heartbeat', {
+        method: 'POST'
       })
       // Reflete o bloqueio feito no painel admin (trava o app via overlay).
       setBlocked(!!res?.blocked)

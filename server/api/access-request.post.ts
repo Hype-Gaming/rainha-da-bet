@@ -1,8 +1,19 @@
 import { getDb } from '../utils/mongodb'
+import { getClientIp, rateLimit } from '../utils/rateLimit'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default defineEventHandler(async (event) => {
+  // Endpoint necessariamente público (quem pede acesso ainda não tem conta).
+  // O upsert por e-mail evita duplicatas, mas nada impedia inundar a fila de
+  // pedidos com e-mails diferentes — o painel admin viraria inútil.
+  rateLimit({
+    key: `access-request:${getClientIp(event)}`,
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+    message: 'Muitos pedidos enviados. Tente novamente mais tarde.'
+  })
+
   const body = await readBody(event)
 
   const email = String(body?.email || '').trim().toLowerCase()

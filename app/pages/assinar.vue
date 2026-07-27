@@ -100,7 +100,7 @@
 import { CHECKOUT_URLS } from "../constants/checkoutLinks";
 
 const { user, logout } = useAuth();
-const { checkSubscription } = useSubscription();
+const { refresh: refreshSubscription } = useSubscription();
 const { requestAccess, sending } = useAccessRequest();
 
 const checkoutUrl = ref<string>(CHECKOUT_URLS.main);
@@ -120,7 +120,8 @@ const verificarAcesso = async () => {
     pedidoEnviado.value = false;
 
     try {
-        const active = await checkSubscription(user.value.email);
+        // Consulta o próprio estado — o servidor resolve a identidade pela sessão.
+        const active = await refreshSubscription();
 
         if (active) {
             mensagemTipo.value = "sucesso";
