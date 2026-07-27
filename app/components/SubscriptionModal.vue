@@ -118,7 +118,7 @@
 <script setup lang="ts">
 import { CHECKOUT_URLS } from "../constants/checkoutLinks";
 
-const { showModal, checking, error, checkSubscription, dismissModal } =
+const { showModal, checking, error, linkSubscription, dismissModal } =
     useSubscription();
 const { requestAccess, sending } = useAccessRequest();
 const { isBlocked } = useAccountBlocked();
@@ -136,7 +136,8 @@ const handleCheck = async () => {
     notFound.value = false;
     requestSent.value = false;
 
-    const active = await checkSubscription(emailInput.value);
+    // Vincula o e-mail da compra à conta logada (exige sessão, limitado por tentativas).
+    const active = await linkSubscription(emailInput.value);
     if (active) {
         successMsg.value = "Assinatura ativa! Acesso liberado.";
         setTimeout(() => dismissModal(), 1200);

@@ -9,8 +9,14 @@
 </template>
 
 <script setup lang="ts">
-const { needsKyc, kycChecked, isAuthenticated, logout, fetchUserProfile } =
-    useAuth();
+const {
+    needsKyc,
+    kycChecked,
+    isAuthenticated,
+    logout,
+    fetchUserProfile,
+    ensureSession,
+} = useAuth();
 const { send: sendHeartbeat } = useHeartbeat();
 const { isBlocked } = useAccountBlocked();
 const route = useRoute();
@@ -31,6 +37,9 @@ const showKycModal = computed(() => {
 // Verificar KYC ao carregar a página
 onMounted(async () => {
     if (isAuthenticated.value) {
+        // Reabre a sessão do servidor a partir do token guardado. Feito só no boot:
+        // durante a navegação, useApi() recupera sozinho em caso de 401.
+        await ensureSession();
         await fetchUserProfile();
         sendHeartbeat();
     }

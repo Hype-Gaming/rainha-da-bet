@@ -139,6 +139,37 @@ export const useAuth = () => {
     }
   }
 
+  /**
+   * Emite (ou renova) a sessão do NOSSO servidor trocando o token do Cactus.
+   *
+   * O login em si continua sendo navegador -> Cactus, intocado. Esta chamada é um
+   * passo ADICIONAL: manda o token para /api/auth/session, que confirma com o Cactus
+   * de quem ele é e devolve um cookie httpOnly. É esse cookie que permite aos nossos
+   * endpoints saberem quem está do outro lado sem acreditar no que o cliente diz.
+   *
+   * Falhar aqui nunca impede o usuário de entrar no app — só deixa o conteúdo
+   * protegido indisponível até a próxima tentativa.
+   */
+  const ensureSession = async (): Promise<boolean> => {
+    if (!import.meta.client) return false
+    if (!authState.token || !authState.cookieKey) return false
+
+    try {
+      await $fetch('/api/auth/session', {
+        method: 'POST',
+        body: {
+          token: authState.token,
+          cookieKey: authState.cookieKey,
+          brandSlug: authState.brandSlug
+        }
+      })
+      return true
+    } catch (err) {
+      console.warn('Não foi possível abrir a sessão do servidor:', err)
+      return false
+    }
+  }
+
   // Buscar perfil do usuário (inclui wallet/balance)
   const fetchUserProfile = async (): Promise<void> => {
     if (!authState.token || !authState.cookieKey) return
@@ -248,6 +279,10 @@ export const useAuth = () => {
 
           saveAuthState()
 
+          // Abre a sessão do servidor. Propositalmente NÃO bloqueia o login:
+          // se falhar, o usuário entra normalmente e a sessão é retentada no boot.
+          await ensureSession()
+
           // Buscar perfil completo do usuário (incluindo wallet/balance)
           await fetchUserProfile()
 
@@ -306,6 +341,12 @@ export const useAuth = () => {
     } catch (err) {
       console.error('Erro no logout:', err)
     } finally {
+      // O cookie é httpOnly: o JavaScript não consegue apagá-lo: só o servidor.
+      try {
+        await $fetch('/api/auth/session', { method: 'DELETE' })
+      } catch {
+        // sessão já expirada ou servidor fora — clearAuth() abaixo resolve o lado do cliente
+      }
       clearAuth()
       loading.value = false
       navigateTo('/auth/login')
@@ -366,6 +407,7 @@ export const useAuth = () => {
     checkAuth,
     getAuthHeaders,
     clearAuth,
-    fetchUserProfile
+    fetchUserProfile,
+    ensureSession
   }
 }
