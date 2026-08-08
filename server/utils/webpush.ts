@@ -5,16 +5,32 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || ''
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:contato@rainhadabet.com'
 
 let configured = false
+let warned = false
 
 // Configura o web-push uma única vez (lazy). Sem as chaves VAPID no .env, o
 // envio fica desabilitado e as rotas respondem com erro claro.
 const ensureConfigured = (): boolean => {
   if (configured) return true
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('[webpush] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes — push desabilitado.')
+    if (!warned) {
+      console.warn('[webpush] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes — push desabilitado.')
+      warned = true
+    }
     return false
   }
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  try {
+    // setVapidDetails valida os argumentos de forma síncrona e lança se o
+    // subject não for mailto:/https: válido ou se as chaves não tiverem o
+    // formato/tamanho esperado. Tratamos isso como "não configurado" para
+    // manter o contrato de nunca lançar.
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  } catch (err: any) {
+    if (!warned) {
+      console.warn('[webpush] Configuração VAPID inválida — push desabilitado.', err?.message)
+      warned = true
+    }
+    return false
+  }
   configured = true
   return true
 }
