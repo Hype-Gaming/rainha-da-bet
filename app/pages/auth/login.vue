@@ -90,6 +90,24 @@
                     </a>
                 </div>
             </div>
+
+            <!-- Ativar notificações push -->
+            <button
+                v-if="showPushPrompt"
+                type="button"
+                class="push-prompt"
+                :disabled="pushLoading"
+                @click="handleEnablePush"
+            >
+                <Icon
+                    :name="
+                        pushLoading ? 'ph:spinner' : 'ph:bell-ringing-bold'
+                    "
+                    :class="{ spinner: pushLoading }"
+                />
+                <span v-if="pushError">{{ pushError }}</span>
+                <span v-else>Ativar notificações de sinais</span>
+            </button>
         </div>
     </div>
 </template>
@@ -113,11 +131,36 @@ const form = reactive({
     password: "",
 });
 
+// Notificações push (web push)
+const {
+    permission: pushPermission,
+    isSubscribed: pushSubscribed,
+    checked: pushChecked,
+    loading: pushLoading,
+    error: pushError,
+    refresh: refreshPush,
+    subscribe: subscribePush,
+} = usePush();
+
+const showPushPrompt = computed(
+    () =>
+        pushChecked.value &&
+        (pushPermission.value === "default" ||
+            pushPermission.value === "granted") &&
+        !pushSubscribed.value,
+);
+
+const handleEnablePush = async () => {
+    await subscribePush(null);
+};
+
 // Redirecionar se já estiver autenticado
 onMounted(() => {
     if (isAuthenticated.value) {
         navigateTo("/");
+        return;
     }
+    refreshPush(null);
 });
 
 const handleLogin = async () => {
@@ -476,5 +519,34 @@ const handleLogin = async () => {
         gap: 12px;
         align-items: flex-start;
     }
+}
+
+.push-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(251, 101, 166, 0.08);
+    border: 1px solid rgba(251, 101, 166, 0.35);
+    color: #fb65a6;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.push-prompt:hover:not(:disabled) {
+    background: rgba(251, 101, 166, 0.14);
+    border-color: #fb65a6;
+}
+
+.push-prompt:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 </style>
