@@ -78,6 +78,46 @@
                     <h3 class="news-title-big">NOTÍCIAS</h3>
                 </div>
 
+                <!-- Ativar notificações push (default/granted e ainda não inscrito) -->
+                <button
+                    v-if="showPushPrompt"
+                    class="push-prompt"
+                    :disabled="pushLoading"
+                    @click="handleEnablePush"
+                >
+                    <div class="push-prompt-icon">
+                        <Icon
+                            :name="
+                                pushLoading
+                                    ? 'ph:spinner-bold'
+                                    : 'ph:bell-ringing-bold'
+                            "
+                            :class="{ spin: pushLoading }"
+                        />
+                    </div>
+                    <div class="push-prompt-text">
+                        <strong>Ativar notificações</strong>
+                        <span v-if="pushError" class="push-prompt-error">{{
+                            pushError
+                        }}</span>
+                        <span v-else>Receba avisos e sinais em primeira mão</span>
+                    </div>
+                </button>
+
+                <!-- Permissão bloqueada: explica como desbloquear -->
+                <div v-else-if="pushBlocked" class="push-prompt push-blocked">
+                    <div class="push-prompt-icon">
+                        <Icon name="ph:bell-slash-bold" />
+                    </div>
+                    <div class="push-prompt-text">
+                        <strong>Notificações bloqueadas</strong>
+                        <span
+                            >Toque no 🔒 ao lado do endereço → Notificações →
+                            Permitir, e recarregue a página.</span
+                        >
+                    </div>
+                </div>
+
                 <NuxtLink
                     :to="news.external ? news.href : news.href || '#'"
                     :href="news.external ? news.href : undefined"
@@ -398,12 +438,39 @@ const handleWindowFocus = () => {
     refreshSubscriptionAccess(true);
 };
 
+// Notificações push (web push)
+const {
+    permission: pushPermission,
+    isSubscribed: pushSubscribed,
+    loading: pushLoading,
+    error: pushError,
+    refresh: refreshPush,
+    subscribe: subscribePush,
+} = usePush();
+
+// Botão de ativar: aparece quando a permissão permite pedir (default/granted) e
+// ainda não está inscrito.
+const showPushPrompt = computed(
+    () =>
+        (pushPermission.value === "default" ||
+            pushPermission.value === "granted") &&
+        !pushSubscribed.value,
+);
+
+// Permissão bloqueada de vez pelo navegador: mostra instruções de desbloqueio.
+const pushBlocked = computed(() => pushPermission.value === "denied");
+
+const handleEnablePush = async () => {
+    await subscribePush(user.value?.email || null);
+};
+
 // Atualizar balance e verificar assinatura ao montar a página
 onMounted(() => {
     if (isAuthenticated.value) {
         fetchUserProfile();
     }
     refreshSubscriptionAccess();
+    refreshPush(user.value?.email || null);
 
     window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("pageshow", handleWindowFocus);
@@ -1583,5 +1650,74 @@ const highlights = ref([
     height: auto;
     display: block;
     border-radius: 16px;
+}
+
+.push-prompt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 14px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #1a0410 0%, #2a0818 100%);
+    border: 1px solid rgba(251, 101, 166, 0.4);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.push-prompt:hover:not(:disabled) {
+    border-color: #fb65a6;
+    box-shadow: 0 0 16px rgba(251, 101, 166, 0.2);
+}
+
+.push-prompt:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
+.push-prompt.push-blocked {
+    cursor: default;
+    border-color: rgba(255, 93, 108, 0.4);
+}
+
+.push-prompt-icon {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(251, 101, 166, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #fb65a6;
+}
+
+.push-prompt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.push-prompt-text strong {
+    font-size: 14px;
+    color: #fff;
+}
+
+.push-prompt-text span {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.4;
+}
+
+.push-prompt-error {
+    color: #ff5d6c !important;
+}
+
+.push-prompt-icon .spin {
+    animation: spin 1s linear infinite;
 }
 </style>
