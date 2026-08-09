@@ -18,6 +18,8 @@ const ensureIndex = async (db: Awaited<ReturnType<typeof getDb>>): Promise<void>
   try {
     await db.collection('push_subscriptions').createIndex({ endpoint: 1 }, { unique: true })
   } catch (err) {
+    // Falha transitória: libera a flag para a próxima requisição tentar de novo.
+    indexEnsured = false
     console.error('[push] Falha ao criar índice de push_subscriptions:', err)
   }
 }
@@ -28,7 +30,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<SubscribeBody>(event)
   const sub = body?.subscription
 
-  if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+  // Valida que os campos são strings de fato — sem isso, um objeto (ex.: um
+  // operador do Mongo como `$ne`) passaria pela checagem de truthiness e
+  // seria usado direto no filtro/documento da query.
+  if (
+    !sub?.endpoint || typeof sub.endpoint !== 'string' ||
+    !sub.keys?.p256dh || typeof sub.keys.p256dh !== 'string' ||
+    !sub.keys?.auth || typeof sub.keys.auth !== 'string'
+  ) {
     throw createError({ statusCode: 400, message: 'Inscrição de push inválida.' })
   }
 
@@ -36,7 +45,7 @@ export default defineEventHandler(async (event) => {
   await ensureIndex(db)
 
   const now = new Date()
-  const email = body.email?.trim().toLowerCase() || null
+  const email = String(body.email || '').trim().toLowerCase() || null
 
   await db.collection('push_subscriptions').updateOne(
     { endpoint: sub.endpoint },
