@@ -105,8 +105,12 @@
                     "
                     :class="{ spinner: pushLoading }"
                 />
-                <span v-if="pushError">{{ pushError }}</span>
-                <span v-else>Ativar notificações de sinais</span>
+                <span class="push-prompt-label">
+                    <span>Ativar notificações de sinais</span>
+                    <span v-if="pushError" class="push-prompt-error">{{
+                        pushError
+                    }}</span>
+                </span>
             </button>
         </div>
     </div>
@@ -548,5 +552,18 @@ const handleLogin = async () => {
 .push-prompt:disabled {
     opacity: 0.6;
     cursor: default;
+}
+
+.push-prompt-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.push-prompt-label .push-prompt-error {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #ff5d6c;
 }
 </style>
