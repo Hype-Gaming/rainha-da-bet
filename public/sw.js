@@ -1,11 +1,14 @@
-const CACHE_NAME = 'irmandade-club-v1';
+const CACHE_NAME = 'rainha-da-bet-v2';
 const VERSION_URL = '/version.json';
 const CHECK_INTERVAL = 30000; // Verificar a cada 30 segundos
 
+// ATENÇÃO: todas as URLs aqui precisam existir de verdade. cache.addAll()
+// rejeita por inteiro se QUALQUER uma falhar, o install quebra e o Service
+// Worker nunca ativa — o que desliga o push junto.
 const urlsToCache = [
   '/',
   '/auth/login',
-  '/images/logo.png',
+  '/logo.png',
   '/robots.txt'
 ];
 
@@ -142,24 +145,49 @@ self.addEventListener('message', (event) => {
 
 // Push notification event
 self.addEventListener('push', (event) => {
+  // Payload enviado pelo servidor como JSON: { title, body, url, icon }.
+  // Mantém compatibilidade com texto cru e com push sem payload.
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { body: event.data.text() };
+    }
+  }
+
+  const title = data.title || 'Rainha da Bet';
   const options = {
-    body: event.data ? event.data.text() : 'Nova atualização disponível!',
-    icon: '/images/logo.png',
-    badge: '/images/logo.png',
+    body: data.body || 'Você tem uma nova notificação!',
+    icon: data.icon || '/logo.png',
+    badge: '/logo.png',
     vibrate: [100, 50, 100],
     data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
+      url: data.url || '/',
+      dateOfArrival: Date.now()
     }
   };
 
   event.waitUntil(
-    self.registration.showNotification('Irmandade Club', options)
+    self.registration.showNotification(title, options)
   );
 });
 
-// Notification click event
+// Notification click event - foca uma aba aberta ou abre a URL do payload
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) client.navigate(targetUrl);
+          return;
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });
