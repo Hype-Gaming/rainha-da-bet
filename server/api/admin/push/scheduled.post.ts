@@ -40,16 +40,25 @@ export default defineEventHandler(async (event) => {
   const type = body?.type === 'daily' ? 'daily' : 'once'
 
   // `runAt` chega como ISO string calculada pelo cliente (fuso local dele).
+  // Exigimos string explicitamente: `new Date(numero)` é uma Date VÁLIDA
+  // (interpretada como milissegundos desde a epoch), então um `runAt` numérico
+  // passaria batido pelo isNaN abaixo e viraria um agendamento com data de 1970.
+  if (typeof body?.runAt !== 'string') {
+    throw createError({ statusCode: 400, message: 'Data/horário do agendamento inválido.' })
+  }
+
   // `new Date(...)` nunca lança, mesmo para entradas absurdas — só produz uma
   // data inválida, que detectamos via isNaN.
-  const runAt = new Date(body?.runAt as any)
+  const runAt = new Date(body.runAt)
   if (isNaN(runAt.getTime())) {
     throw createError({ statusCode: 400, message: 'Data/horário do agendamento inválido.' })
   }
 
-  // Só para agendamento único: dá 1 minuto de tolerância antes de recusar um
+  // Vale para os dois tipos: dá 1 minuto de tolerância antes de recusar um
   // horário já passado (evita rejeitar por causa de pequeno atraso de rede).
-  if (type === 'once' && runAt.getTime() < Date.now() - 60_000) {
+  // Um `daily` legítimo nunca cai aqui — o cliente sempre rola para a próxima
+  // ocorrência futura do horário escolhido antes de enviar.
+  if (runAt.getTime() < Date.now() - 60_000) {
     throw createError({ statusCode: 400, message: 'O horário escolhido já passou.' })
   }
 
