@@ -79,6 +79,11 @@ export const usePush = () => {
   // tem a inscrição mas o salvamento anterior falhou (ex.: servidor fora no
   // momento do clique): ao recarregar a página, a inscrição é re-enviada.
   const refresh = async (email?: string | null) => {
+    // Estado do módulo é compartilhado entre requisições no processo do Nitro:
+    // nunca escrever nele durante SSR, senão o estado de um usuário vaza pro
+    // render de outro. No servidor, simplesmente não há nada a fazer aqui.
+    if (!import.meta.client) return
+
     if (!isSupported()) {
       permission.value = 'unsupported'
       return
@@ -103,6 +108,11 @@ export const usePush = () => {
   // Pede permissão, inscreve no Push e envia a inscrição ao servidor.
   // Retorna true se ficou inscrito.
   const subscribe = async (email?: string | null): Promise<boolean> => {
+    // Estado do módulo é compartilhado entre requisições no processo do Nitro:
+    // nunca escrever nele durante SSR, senão o estado de um usuário vaza pro
+    // render de outro. No servidor, não há permissão/push pra pedir mesmo.
+    if (!import.meta.client) return false
+
     error.value = null
 
     if (!isSupported()) {
