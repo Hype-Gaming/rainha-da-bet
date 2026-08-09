@@ -81,6 +81,7 @@
                 <!-- Ativar notificações push (default/granted e ainda não inscrito) -->
                 <button
                     v-if="showPushPrompt"
+                    type="button"
                     class="push-prompt"
                     :disabled="pushLoading"
                     @click="handleEnablePush"
@@ -444,21 +445,27 @@ const {
     isSubscribed: pushSubscribed,
     loading: pushLoading,
     error: pushError,
+    checked: pushChecked,
     refresh: refreshPush,
     subscribe: subscribePush,
 } = usePush();
 
 // Botão de ativar: aparece quando a permissão permite pedir (default/granted) e
-// ainda não está inscrito.
+// ainda não está inscrito. Só decide depois que o primeiro refresh() já rodou
+// (pushChecked), senão o estado inicial (default/não inscrito) pisca na tela
+// antes do valor real chegar.
 const showPushPrompt = computed(
     () =>
+        pushChecked.value &&
         (pushPermission.value === "default" ||
             pushPermission.value === "granted") &&
         !pushSubscribed.value,
 );
 
 // Permissão bloqueada de vez pelo navegador: mostra instruções de desbloqueio.
-const pushBlocked = computed(() => pushPermission.value === "denied");
+const pushBlocked = computed(
+    () => pushChecked.value && pushPermission.value === "denied",
+);
 
 const handleEnablePush = async () => {
     await subscribePush(user.value?.email || null);
@@ -1667,7 +1674,7 @@ const highlights = ref([
     transition: all 0.2s ease;
 }
 
-.push-prompt:hover:not(:disabled) {
+.push-prompt:hover:not(:disabled):not(.push-blocked) {
     border-color: #fb65a6;
     box-shadow: 0 0 16px rgba(251, 101, 166, 0.2);
 }

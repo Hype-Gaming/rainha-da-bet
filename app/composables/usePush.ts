@@ -66,6 +66,10 @@ const permission = ref<'unsupported' | NotificationPermission>('default')
 const isSubscribed = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
+// Fica true depois que o primeiro refresh() termina no cliente. Enquanto
+// false, o estado acima ainda é só o valor inicial (não o real), então a UI
+// não deve decidir nada com base nele.
+const checked = ref(false)
 
 export const usePush = () => {
   const isSupported = (): boolean =>
@@ -81,15 +85,24 @@ export const usePush = () => {
   const refresh = async (email?: string | null) => {
     // Estado do módulo é compartilhado entre requisições no processo do Nitro:
     // nunca escrever nele durante SSR, senão o estado de um usuário vaza pro
-    // render de outro. No servidor, simplesmente não há nada a fazer aqui.
+    // render de outro. No servidor, simplesmente não há nada a fazer aqui. O
+    // guard retorna ANTES do try/finally, então 'checked' nunca é escrito no
+    // servidor.
     if (!import.meta.client) return
+
+    // Limpa erro de uma tentativa anterior: um refresh novo (ex.: ao voltar
+    // pra página) não deve reexibir um erro antigo sem o usuário ter clicado
+    // em nada de novo.
+    error.value = null
 
     if (!isSupported()) {
       permission.value = 'unsupported'
+      checked.value = true
       return
     }
-    permission.value = Notification.permission
+
     try {
+      permission.value = Notification.permission
       const registration = await getActiveRegistration()
       const sub = await registration.pushManager.getSubscription()
       isSubscribed.value = !!sub
@@ -102,6 +115,8 @@ export const usePush = () => {
       }
     } catch {
       isSubscribed.value = false
+    } finally {
+      checked.value = true
     }
   }
 
@@ -202,6 +217,7 @@ export const usePush = () => {
     isSubscribed: readonly(isSubscribed),
     loading: readonly(loading),
     error: readonly(error),
+    checked: readonly(checked),
     isSupported,
     refresh,
     subscribe,
