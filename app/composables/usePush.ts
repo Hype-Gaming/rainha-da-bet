@@ -34,24 +34,40 @@ const getActiveRegistration = async (timeoutMs = 10000): Promise<ServiceWorkerRe
       navigator.serviceWorker.ready.then(() => { clearTimeout(timer); resolve() }).catch(reject)
       return
     }
-    worker.addEventListener('statechange', () => {
+    // 'statechange' dispara várias vezes até chegar num estado terminal
+    // (installing -> installed -> activating -> activated, ou -> redundant),
+    // então não dá pra usar { once: true } direto: removemos o listener nós
+    // mesmos assim que um estado terminal é alcançado, pra não deixá-lo
+    // pendurado pelo resto da vida da página.
+    const onStateChange = () => {
       if (worker.state === 'activated') {
         clearTimeout(timer)
+        worker.removeEventListener('statechange', onStateChange)
         resolve()
+      } else if (worker.state === 'redundant') {
+        // Estado terminal: o worker falhou ao instalar ou foi substituído.
+        // Rejeita na hora em vez de esperar o timeout todo.
+        clearTimeout(timer)
+        worker.removeEventListener('statechange', onStateChange)
+        reject(new Error('O Service Worker falhou ao instalar.'))
       }
-    })
+    }
+    worker.addEventListener('statechange', onStateChange)
   })
 
   return (await navigator.serviceWorker.getRegistration()) || reg
 }
 
-export const usePush = () => {
-  // 'unsupported' | 'default' | 'granted' | 'denied'
-  const permission = ref<'unsupported' | NotificationPermission>('default')
-  const isSubscribed = ref(false)
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+// Estado compartilhado em nível de módulo (mesmo padrão de useAdmin/useAuth/
+// useSubscription): todo componente que chamar usePush() enxerga o mesmo
+// estado, em vez de cada chamada ter sua própria cópia desincronizada.
+// 'unsupported' | 'default' | 'granted' | 'denied'
+const permission = ref<'unsupported' | NotificationPermission>('default')
+const isSubscribed = ref(false)
+const loading = ref(false)
+const error = ref<string | null>(null)
 
+export const usePush = () => {
   const isSupported = (): boolean =>
     import.meta.client &&
     'serviceWorker' in navigator &&
@@ -128,10 +144,16 @@ export const usePush = () => {
       console.error('[push] Erro ao inscrever:', err)
       // mensagem mais específica pra ajudar a diagnosticar
       const msg = String(err?.message || err)
+      // status do erro do $fetch/ofetch vem em formatos diferentes conforme a
+      // origem (erro de rede vs. resposta HTTP), então checamos várias formas.
+      const statusCode = err?.statusCode ?? err?.status ?? err?.response?.status
       if (msg.includes('Service Worker')) {
         error.value = 'O Service Worker não ativou. Recarregue a página e tente de novo.'
       } else if (err?.name === 'NotAllowedError') {
         error.value = 'Permissão bloqueada no navegador.'
+      } else if (statusCode === 503) {
+        // VAPID não configurado no servidor: não adianta o usuário tentar de novo.
+        error.value = 'Notificações indisponíveis no momento. Tente mais tarde.'
       } else {
         error.value = 'Não foi possível ativar. Verifique a conexão e tente de novo.'
       }
