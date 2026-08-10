@@ -1,4 +1,4 @@
-# Contexto do Projeto — Irmandade Club (HypeGaming)
+# Contexto do Projeto — Rainha da Bet (HypeGaming)
 
 > Documento de contexto completo para replicar este projeto ou continuar desenvolvimento em outro ambiente.
 

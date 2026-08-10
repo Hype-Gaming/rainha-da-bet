@@ -1,4 +1,4 @@
-// Composable de Depósito - Irmandade Club
+// Composable de Depósito - Rainha da Bet
 // Integração com API Cactus para depósitos PIX
 
 // Tipos

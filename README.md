@@ -1,6 +1,6 @@
-# Irmandade Club Hypegaming
+# Rainha da Bet
 
-Aplicacao web em Nuxt para a plataforma Irmandade Club, com experiencia de dashboard, autenticacao, area de jogos, mentoria, gestao de banca e fluxo de deposito integrado a API Cactus.
+Aplicacao web em Nuxt para a plataforma Rainha da Bet, com experiencia de dashboard, autenticacao, area de jogos, mentoria, gestao de banca e fluxo de deposito integrado a API Cactus.
 
 ## Tecnologias
 
