@@ -1,4 +1,4 @@
-# WebSocket de Sinais e Modais do Frontend — Irmandade Club
+# WebSocket de Sinais e Modais do Frontend — Rainha da Bet
 
 > Documentação técnica do fluxo de conexão WebSocket para sinais ao vivo e dos modais de interação com o usuário.
 
