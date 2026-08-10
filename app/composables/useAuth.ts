@@ -1,4 +1,4 @@
-// Composable de Autenticação - Irmandade Club
+// Composable de Autenticação - Rainha da Bet
 // Integração com API Cactus
 //
 // Marca única (esportiva): o login autentica contra ela e a marca fica guardada

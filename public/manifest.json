@@ -1,11 +1,11 @@
 {
-  "name": "Irmandade Club - Análises em Tempo Real",
-  "short_name": "Irmandade Club",
+  "name": "Rainha da Bet - Análises em Tempo Real",
+  "short_name": "Rainha da Bet",
   "description": "Plataforma exclusiva para acompanhar jogos ao vivo com análises inteligentes e estatísticas em tempo real.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#00ccff",
+  "theme_color": "#fb65a6",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
