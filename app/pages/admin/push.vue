@@ -99,11 +99,13 @@
                         type="datetime-local"
                         class="adm-input"
                     />
+                    <p class="adm-hint">O horário segue o relógio deste dispositivo.</p>
                 </div>
 
                 <div v-if="mode === 'daily'" class="adm-field">
                     <label for="time">Horário (todo dia)</label>
                     <input id="time" v-model="timeOfDay" type="time" class="adm-input" />
+                    <p class="adm-hint">O horário segue o relógio deste dispositivo.</p>
                 </div>
 
                 <button
@@ -137,11 +139,14 @@
                     </button>
                 </div>
 
-                <p v-if="!scheduled.length" class="adm-hint">
+                <p v-if="loadFailed" class="adm-hint adm-warn">
+                    Não foi possível carregar os agendamentos. Tente "Atualizar".
+                </p>
+                <p v-else-if="!scheduled.length && !loading" class="adm-hint">
                     Nenhum agendamento.
                 </p>
 
-                <ul v-else class="adm-req-list">
+                <ul v-else-if="scheduled.length" class="adm-req-list">
                     <li v-for="job in scheduled" :key="job.id" class="adm-req">
                         <div class="adm-req-info">
                             <strong>{{ job.title }}</strong>
@@ -149,7 +154,7 @@
                             <span class="adm-muted-txt small">
                                 {{ job.type === "daily" ? "Todo dia" : "Uma vez" }}
                                 · próximo: {{ fmtDate(job.nextRunAt) }} ·
-                                {{ job.status }}
+                                {{ statusLabel(job.status) }}
                             </span>
                         </div>
                         <div class="adm-req-actions">
@@ -173,13 +178,19 @@
                             subscribers.length
                         }})
                     </h2>
+                    <span v-if="stats" class="adm-muted-txt small">
+                        {{ stats.total }} inscritos, {{ stats.withEmail }} identificados por e-mail
+                    </span>
                 </div>
 
-                <p v-if="!subscribers.length" class="adm-hint">
+                <p v-if="loadFailed" class="adm-hint adm-warn">
+                    Não foi possível carregar os inscritos. Tente "Atualizar".
+                </p>
+                <p v-else-if="!subscribers.length && !loading" class="adm-hint">
                     Ninguém ativou as notificações ainda.
                 </p>
 
-                <ul v-else class="adm-req-list">
+                <ul v-else-if="subscribers.length" class="adm-req-list">
                     <li v-for="s in subscribers" :key="s.id" class="adm-req">
                         <div class="adm-req-info">
                             <strong>{{ s.name || s.email || "Anônimo" }}</strong>
@@ -241,6 +252,7 @@ interface Subscriber {
 const { adminFetch, needsLogin } = useAdmin();
 
 const loading = ref(false);
+const loadFailed = ref(false);
 const sending = ref(false);
 const busy = ref<string | null>(null);
 
@@ -278,6 +290,22 @@ const fmtDate = (value: string | null): string => {
     return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 };
 
+const STATUS_LABELS: Record<string, string> = {
+    active: "Ativo",
+    sending: "Enviando",
+    done: "Concluído",
+};
+
+const statusLabel = (status: string): string => STATUS_LABELS[status] || status;
+
+// Lê o status HTTP de um erro do adminFetch, do mesmo jeito em todos os handlers.
+const errStatus = (err: any): number | undefined => err?.status || err?.statusCode;
+
+// Margem para absorver o descompasso entre o relógio do navegador do admin e o
+// do servidor: sem ela, um horário escolhido a poucos segundos do "agora" local
+// pode nascer no passado sob o relógio do servidor e ser rejeitado à toa.
+const DAILY_ROLL_BUFFER_MS = 2 * 60 * 1000;
+
 // Monta o momento do primeiro disparo em ISO, a partir do fuso local do admin.
 // 'once' usa o datetime-local direto; 'daily' usa o próximo horário futuro.
 const buildRunAt = (): string | null => {
@@ -294,12 +322,13 @@ const buildRunAt = (): string | null => {
     const next = new Date();
     next.setSeconds(0, 0);
     next.setHours(h, m);
-    if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
+    if (next.getTime() - Date.now() < DAILY_ROLL_BUFFER_MS) next.setDate(next.getDate() + 1);
     return next.toISOString();
 };
 
 const loadAll = async () => {
     loading.value = true;
+    loadFailed.value = false;
     try {
         const [s, j, subs] = await Promise.all([
             adminFetch<PushStats>("/api/admin/push/stats"),
@@ -312,8 +341,8 @@ const loadAll = async () => {
     } catch (err: any) {
         // O adminFetch já derruba a sessão no 401, o que faz needsLogin virar
         // true sozinho e o AdminPasswordGate aparecer.
-        const status = err?.status || err?.statusCode;
-        if (status !== 401) {
+        if (errStatus(err) !== 401) {
+            loadFailed.value = true;
             showToast("Falha ao carregar os dados.", "error");
         }
     } finally {
@@ -361,7 +390,11 @@ const submit = async () => {
         url.value = "";
         await loadAll();
     } catch (err: any) {
-        showToast(err?.data?.message || "Falha ao enviar.", "error");
+        // No 401 o adminFetch já derrubou a sessão e o AdminPasswordGate vai
+        // aparecer sozinho — evita mostrar um erro genérico por cima do gate.
+        if (errStatus(err) !== 401) {
+            showToast(err?.data?.message || "Falha ao enviar.", "error");
+        }
     } finally {
         sending.value = false;
     }
@@ -373,8 +406,10 @@ const cancelJob = async (id: string) => {
         await adminFetch(`/api/admin/push/scheduled/${id}`, { method: "DELETE" });
         showToast("Agendamento cancelado.");
         await loadAll();
-    } catch {
-        showToast("Falha ao cancelar.", "error");
+    } catch (err: any) {
+        if (errStatus(err) !== 401) {
+            showToast("Falha ao cancelar.", "error");
+        }
     } finally {
         busy.value = null;
     }
