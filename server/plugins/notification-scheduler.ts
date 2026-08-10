@@ -56,7 +56,15 @@ const nextDailyOccurrence = (from: Date, now: Date): Date => {
   return next
 }
 
-const asDate = (value: unknown): Date => (value instanceof Date ? value : new Date(value as string))
+// Converte o `nextRunAt` guardado no banco para Date, devolvendo null quando o
+// valor está ausente ou é inválido. Sem essa checagem uma linha corrompida
+// viraria Invalid Date, o BSON gravaria isso como epoch (1970) sem lançar, e o
+// job passaria a ser reivindicado e disparado uma vez a mais a cada tick até se
+// autocorrigir. Preferimos transformar corrupção silenciosa em falha explícita.
+const asDate = (value: unknown): Date | null => {
+  const date = value instanceof Date ? value : new Date(value as string)
+  return isNaN(date.getTime()) ? null : date
+}
 
 let ticking = false
 
@@ -94,8 +102,14 @@ const tick = async (): Promise<void> => {
 
     for (const job of staleJobs) {
       try {
-        if (job.type === 'daily') {
-          const nextRunAt = nextDailyOccurrence(asDate(job.nextRunAt), now)
+        const from = job.type === 'daily' ? asDate(job.nextRunAt) : null
+
+        if (job.type === 'daily' && from) {
+          // Timestamp fresco aqui, e não o `now` do início do tick: o tick pode
+          // ter levado minutos processando outros jobs, e reaproveitar o `now`
+          // antigo poderia gerar um nextRunAt que já nasceu no passado — o que
+          // dispararia um envio extra no tick seguinte.
+          const nextRunAt = nextDailyOccurrence(from, new Date())
           await collection.updateOne(
             { _id: job._id },
             {
@@ -103,7 +117,22 @@ const tick = async (): Promise<void> => {
               $unset: { claimedAt: '' }
             }
           )
-          console.log(`[scheduler] Job diário travado recuperado (execução perdida pulada): ${job._id}`)
+          console.log(
+            `[scheduler] Job diário travado recuperado, execução perdida pulada: "${job.title}" (${job._id})`
+          )
+        } else if (job.type === 'daily') {
+          // Diário com nextRunAt inválido: não dá para calcular a próxima
+          // ocorrência, então encerramos o job em vez de deixá-lo travado.
+          await collection.updateOne(
+            { _id: job._id },
+            {
+              $set: { status: 'done', lastResult: { interrupted: true, invalidSchedule: true } },
+              $unset: { claimedAt: '' }
+            }
+          )
+          console.error(
+            `[scheduler] Job diário travado com nextRunAt inválido, encerrado: "${job.title}" (${job._id})`
+          )
         } else {
           await collection.updateOne(
             { _id: job._id },
@@ -112,7 +141,9 @@ const tick = async (): Promise<void> => {
               $unset: { claimedAt: '' }
             }
           )
-          console.log(`[scheduler] Job travado recuperado (marcado como concluído): ${job._id}`)
+          console.log(
+            `[scheduler] Job travado recuperado, marcado como concluído: "${job.title}" (${job._id})`
+          )
         }
       } catch (err) {
         console.error('[scheduler] Falha ao recuperar job travado:', job._id, err)
@@ -141,11 +172,31 @@ const tick = async (): Promise<void> => {
 
         console.log(`[scheduler] Notificação "${job.title}" disparada (${job._id}):`, dispatchResult)
 
-        if (job.type === 'daily') {
-          const nextRunAt = nextDailyOccurrence(asDate(job.nextRunAt), now)
+        const from = job.type === 'daily' ? asDate(job.nextRunAt) : null
+
+        if (job.type === 'daily' && from) {
+          // Timestamp fresco (ver comentário na recuperação acima): o `now` do
+          // início do tick pode já estar velho depois de disparar vários jobs.
+          const nextRunAt = nextDailyOccurrence(from, new Date())
           await collection.updateOne(
             { _id: job._id },
             { $set: { status: 'active', nextRunAt, lastSentAt: new Date(), lastResult: dispatchResult } }
+          )
+        } else if (job.type === 'daily') {
+          // Diário com nextRunAt inválido: já disparou, mas não há como
+          // reagendar. Encerra em vez de deixar o job travado em 'sending'.
+          await collection.updateOne(
+            { _id: job._id },
+            {
+              $set: {
+                status: 'done',
+                lastSentAt: new Date(),
+                lastResult: { ...dispatchResult, invalidSchedule: true }
+              }
+            }
+          )
+          console.error(
+            `[scheduler] Job diário com nextRunAt inválido, encerrado após disparar: "${job.title}" (${job._id})`
           )
         } else {
           await collection.updateOne(
