@@ -12,6 +12,9 @@
                     <span>Painel Admin — Rainha da Bet</span>
                 </div>
                 <div class="adm-topbar-right">
+                    <NuxtLink to="/admin/push" class="adm-btn-ghost">
+                        <Icon name="ph:bell-ringing-bold" /> Notificações
+                    </NuxtLink>
                     <NuxtLink to="/admin/webhook" class="adm-btn-ghost">
                         <Icon name="ph:plug-bold" /> Liberar acesso
                     </NuxtLink>
