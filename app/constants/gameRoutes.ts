@@ -78,7 +78,7 @@ export const GAME_ROUTE_DEFINITIONS: Record<string, GameRouteDefinition> = {
       collection: 'evolution',
       game: 'Football Studio English'
     },
-    signalRef: { collection: 'football_studio_english', name: 'football-studio-eng-default' }
+    signalRef: { collection: 'football_studio_english', name: 'football-studio-eng-hypeg0' }
   },
   'football-studio-ao-vivo': {
     id: 'football-studio-ao-vivo',
