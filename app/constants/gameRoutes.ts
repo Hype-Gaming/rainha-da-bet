@@ -78,6 +78,17 @@ export const GAME_ROUTE_DEFINITIONS: Record<string, GameRouteDefinition> = {
       collection: 'evolution',
       game: 'Football Studio English'
     },
+    signalRef: { collection: 'football_studio_english', name: 'football-studio-eng-default' }
+  },
+  'football-studio-en': {
+    id: 'football-studio-en',
+    displayName: 'Football Studio ENGLISH',
+    provider: 'Evolution',
+    startGameSlug: 'evolution/football-studio-english',
+    catalogador: {
+      collection: 'evolution',
+      game: 'Football Studio English'
+    },
     signalRef: { collection: 'football_studio_english', name: 'football-studio-eng-hypeg0' }
   },
   'football-studio-ao-vivo': {
