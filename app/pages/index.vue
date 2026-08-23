@@ -676,7 +676,7 @@ const premiumGames = ref([
 
 const claudeGames = ref([
     {
-        id: "football-studio",
+        id: "football-studio-en",
         name: "FOOTBALL STUDIO ENGLISH",
         image: "/games/football-studio.png",
         checkoutUrl: CHECKOUT_URLS.legacySemGale,
