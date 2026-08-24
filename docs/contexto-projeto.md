@@ -107,6 +107,7 @@ Todos em `app/constants/gameRoutes.ts`:
 | `bac-bo-brasileiro` | Bac Bo Brasileiro | `evolution` | `Bac Bo Brasileiro` | `bac_bo_ao_vivo` | `bac-bo-ao-vivo-hypeg1` |
 | `bac-bo-sem-gale` | Bac Bo - Sinal Sem Gale | `evolution` | `Bac Bo Sem Gale` | `bac_bo_sem_gale` | `bac-bo-ao-vivo-hypeg0` |
 | `football-studio` | Football Studio | `evolution` | `Football Studio English` | `football_studio_english` | `football-studio-eng-hypeg0` |
+| `football-studio-en` | Football Studio ENGLISH | `evolution` | `Football Studio English` | `football_studio_english` | `football-studio-eng-hypeg0` |
 | `football-studio-ao-vivo` | Futebol Studio Ao Vivo | `evolution` | `Futebol Studio Ao Vivo` | `futebol_studio_ao_vivo` | `football-studio-ao-vivo-default` |
 | `dragon-tiger` | Dragon Tiger | `evolution` | `Dragon Tiger` | `dragon_tiger_evolution` | `dragon-tiger-evo-hypeg1` |
 | `aviator` | Aviator | `spribe` | `aviatorlotogreen` | `aviator_spribe` | `aviator-spribe-hypeg1` |
@@ -118,6 +119,7 @@ Todos em `app/constants/gameRoutes.ts`:
 |---|---|---|
 | `bac-bo-brasileiro` | `bac-bo` | Mesma mesa, sinal diferente |
 | `bac-bo-sem-gale` | `bac-bo-en` | Mesma mesa, sinal sem gale |
+| `football-studio-en` | `football-studio` | Mesma mesa, sinal da IA sem gale |
 
 ---
 
