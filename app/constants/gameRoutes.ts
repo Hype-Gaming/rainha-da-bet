@@ -84,7 +84,7 @@ export const GAME_ROUTE_DEFINITIONS: Record<string, GameRouteDefinition> = {
     id: 'football-studio-en',
     displayName: 'Football Studio ENGLISH',
     provider: 'Evolution',
-    startGameSlug: 'evolution/football-studio-english',
+    resolvedId: 'football-studio',
     catalogador: {
       collection: 'evolution',
       game: 'Football Studio English'
@@ -152,6 +152,10 @@ export const getGameRouteConfig = (gameId: string): GameRouteDefinition => {
   const routeConfig = GAME_ROUTE_DEFINITIONS[gameId]
   const resolvedId = resolveGameRouteId(gameId)
   const baseConfig = GAME_ROUTE_DEFINITIONS[resolvedId] || GAME_ROUTE_DEFINITIONS[DEFAULT_GAME_ID]
+
+  if (!baseConfig) {
+    throw new Error(`Configuração do jogo padrão "${DEFAULT_GAME_ID}" não encontrada`)
+  }
 
   return {
     ...baseConfig,
