@@ -16,7 +16,10 @@ export default defineEventHandler(async (event) => {
   const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null
 
   const match: Record<string, any> = {}
-  if (rx) match.$or = [{ email: rx }, { name: rx }, { phone: rx }]
+  if (rx) {
+    match.$or = [{ email: rx }, { name: rx }, { phone: rx }, { cactus_user_id: search }]
+    if (/^\d+$/.test(search)) match.$or.push({ cactus_user_id: Number(search) })
+  }
   if (status === 'active') match.blocked = { $ne: true }
   if (status === 'blocked') match.blocked = true
   if (brand) match.brand_slug = brand
