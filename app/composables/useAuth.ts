@@ -139,6 +139,11 @@ export const useAuth = () => {
     }
   }
 
+  const requireKyc = () => {
+    authState.needsKyc = true
+    authState.kycChecked = true
+  }
+
   // Buscar perfil do usuário (inclui wallet/balance)
   const fetchUserProfile = async (): Promise<void> => {
     if (!authState.token || !authState.cookieKey) return
@@ -182,12 +187,11 @@ export const useAuth = () => {
       authState.needsKyc = !kycValidatedAt || kycValidatedAt === '' || kycValidatedAt === null
       authState.kycChecked = true
 
-      console.log('KYC Check:', { kycValidatedAt, needsKyc: authState.needsKyc })
-
       saveAuthState()
     } catch (err: any) {
       if (err?.statusCode === 401 || err?.response?.status === 401) {
         clearAuth()
+        await navigateTo('/auth/login?reason=session_expired')
         return
       }
       console.error('Erro ao buscar perfil do usuário:', err)
@@ -251,6 +255,10 @@ export const useAuth = () => {
           // Buscar perfil completo do usuário (incluindo wallet/balance)
           await fetchUserProfile()
 
+          if (!authState.isAuthenticated) {
+            return { success: false, message: 'Sua sessão expirou. Faça login novamente.' }
+          }
+
           return { success: true }
         } catch (err: any) {
           lastError = err
@@ -270,10 +278,12 @@ export const useAuth = () => {
         message = 'E-mail/CPF ou senha incorretos.'
       } else if (detail?.reason === 'user_not_found') {
         message = 'Usuário não encontrado.'
+      } else if (lastError?.statusCode === 429 || lastError?.response?.status === 429) {
+        message = 'Muitas tentativas. Aguarde um momento.'
       } else if (lastError?.statusCode === 401) {
         message = 'Credenciais inválidas.'
-      } else if (lastError?.data?.message) {
-        message = lastError.data.message
+      } else if ((lastError?.statusCode || lastError?.response?.status) >= 500) {
+        message = 'O serviço de autenticação está indisponível. Aguarde dois minutos e tente novamente.'
       }
 
       error.value = message
@@ -366,6 +376,7 @@ export const useAuth = () => {
     checkAuth,
     getAuthHeaders,
     clearAuth,
+    requireKyc,
     fetchUserProfile
   }
 }
