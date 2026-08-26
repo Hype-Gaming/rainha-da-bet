@@ -28,7 +28,10 @@ export default defineEventHandler(async (event) => {
   const rx = search ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null
 
   const match: Record<string, any> = {}
-  if (rx) match.$or = [{ email: rx }, { name: rx }, { phone: rx }]
+  if (rx) {
+    match.$or = [{ email: rx }, { name: rx }, { phone: rx }, { cactus_user_id: search }]
+    if (/^\d+$/.test(search)) match.$or.push({ cactus_user_id: Number(search) })
+  }
   if (status === 'active') match.blocked = { $ne: true }
   if (status === 'blocked') match.blocked = true
   if (brand) match.brand_slug = brand
@@ -56,7 +59,7 @@ export default defineEventHandler(async (event) => {
   const rows = await db.collection('app_users').aggregate(pipeline).toArray()
 
   const header = [
-    'Nome', 'E-mail', 'Telefone', 'Assinatura', 'PIX (qtd)', 'Valor PIX',
+    'Nome', 'E-mail', 'ID do jogador', 'Telefone', 'Assinatura', 'PIX (qtd)', 'Valor PIX',
     'Marca', '1º acesso', 'Último acesso', 'Status', 'Risco', 'Status contato'
   ]
   const lines = [header.join(';')]
@@ -64,6 +67,7 @@ export default defineEventHandler(async (event) => {
     lines.push([
       csvCell(u.name),
       csvCell(u.email),
+      csvCell(u.cactus_user_id),
       csvCell(u.phone),
       csvCell(u.subscription === 'paid' ? 'Pago' : 'Free'),
       csvCell(u.deposits_count ?? 0),

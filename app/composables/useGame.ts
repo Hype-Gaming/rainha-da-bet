@@ -11,11 +11,12 @@ export interface GameSignalConfig {
 }
 
 export const useGame = () => {
-  const { token, cookieKey, clearAuth, apiBaseUrl, brandSlug, baseDomain } = useAuth()
+  const { token, cookieKey, clearAuth, brandSlug, user, requireKyc } = useAuth()
   
   const gameUrl = ref<string>('')
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const errorCode = ref<string | null>(null)
   const gameSignalConfig = ref<GameSignalConfig | null>(null)
 
   /**
@@ -85,6 +86,7 @@ export const useGame = () => {
 
     isLoading.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await $fetch<{
@@ -99,7 +101,7 @@ export const useGame = () => {
           }
         }
         message?: string
-      }>(`${apiBaseUrl.value}/api/start-game`, {
+      }>('/api/start-game', {
         method: 'GET',
         params: {
           slug,
@@ -109,8 +111,9 @@ export const useGame = () => {
         headers: {
           'Authorization': `Bearer ${token.value}`,
           'X-Brand-Slug': brandSlug.value,
-          'X-Base-Domain': baseDomain.value,
-          'X-Cactus-Cookie-Key': String(cookieKey.value || '')
+          'X-Cactus-Cookie-Key': String(cookieKey.value || ''),
+          'X-Player-Email': user.value?.email || '',
+          'X-Player-Id': String(user.value?.id || '')
         }
       })
 
@@ -130,15 +133,23 @@ export const useGame = () => {
         return response.payload.launchOptions.game_url
       }
 
-      error.value = response.message || 'Erro ao iniciar jogo'
+      errorCode.value = 'START_GAME_REJECTED'
+      error.value = 'A casa de apostas não liberou o jogo.'
       return null
     } catch (err: any) {
       if (err?.statusCode === 401 || err?.response?.status === 401) {
         clearAuth()
+        await navigateTo('/auth/login?reason=session_expired')
         return null
       }
-      console.error('Erro ao iniciar jogo:', err)
-      error.value = err.data?.message || err.message || 'Erro ao iniciar jogo'
+      const code = err?.data?.data?.code || err?.data?.code || 'START_GAME_REJECTED'
+      errorCode.value = code
+      if (code === 'KYC_REQUIRED') {
+        requireKyc()
+        error.value = 'Complete a verificação da sua conta para abrir o jogo.'
+      } else {
+        error.value = 'A casa de apostas não liberou o jogo.'
+      }
       return null
     } finally {
       isLoading.value = false
@@ -163,6 +174,7 @@ export const useGame = () => {
     gameUrl,
     isLoading,
     error,
+    errorCode,
     gameSignalConfig,
     startGame,
     fetchGameConfig,

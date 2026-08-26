@@ -435,6 +435,11 @@
         </div>
       </div>
     </div>
+    <GameErrorModal
+      :show="showGameErrorModal"
+      @retry="retryFromModal"
+      @close="gameErrorModalDismissed = true"
+    />
   </div>
 </template>
 
@@ -443,7 +448,9 @@ import { getCatalogadorQueries, getGameRouteConfig, resolveGameRouteId } from '.
 
 const route = useRoute()
 const { isAuthenticated } = useAuth()
-const { startGame, fetchGameConfig, gameSignalConfig, isLoading: isLoadingGame, error: gameError } = useGame()
+const { startGame, fetchGameConfig, gameSignalConfig, isLoading: isLoadingGame, error: gameError, errorCode: gameErrorCode } = useGame()
+const gameErrorModalDismissed = ref(false)
+const showGameErrorModal = computed(() => gameErrorCode.value === 'START_GAME_REJECTED' && !gameErrorModalDismissed.value)
 
 // ID do jogo baseado na rota
 const gameId = computed(() => route.params.id as string || 'bac-bo')
@@ -1430,6 +1437,16 @@ const loadGame = async () => {
     iframeUrl.value = url
   }
 }
+
+const retryFromModal = async () => {
+  gameErrorModalDismissed.value = false
+  iframeUrl.value = ''
+  await loadGame()
+}
+
+watch(gameErrorCode, (code) => {
+  if (code === 'START_GAME_REJECTED') gameErrorModalDismissed.value = false
+})
 
 // Carrega o jogo ao montar o componente
 onMounted(() => {

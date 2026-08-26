@@ -98,7 +98,7 @@
                             ref="searchInput"
                             v-model="search"
                             type="text"
-                            placeholder="Buscar e-mail, nome ou telefone..."
+                            placeholder="Buscar e-mail, nome, telefone ou ID..."
                         />
                     </div>
                     <div class="adm-chips">
@@ -129,6 +129,7 @@
                         <thead>
                             <tr>
                                 <th>Usuário</th>
+                                <th>ID jogador</th>
                                 <th>Telefone</th>
                                 <th>Tag</th>
                                 <th>Contato</th>
@@ -143,10 +144,10 @@
                         </thead>
                         <tbody>
                             <tr v-if="loadingUsers && !users.length">
-                                <td colspan="11" class="adm-td-empty">Carregando...</td>
+                                <td colspan="12" class="adm-td-empty">Carregando...</td>
                             </tr>
                             <tr v-else-if="!users.length">
-                                <td colspan="11" class="adm-td-empty">Nenhum usuário encontrado.</td>
+                                <td colspan="12" class="adm-td-empty">Nenhum usuário encontrado.</td>
                             </tr>
                             <tr v-for="u in users" :key="u.email">
                                 <td>
@@ -160,6 +161,7 @@
                                         </div>
                                     </div>
                                 </td>
+                                <td class="adm-player-id">{{ u.cactus_user_id ?? "—" }}</td>
                                 <td>
                                     <div v-if="editingPhone === u.email" class="adm-phone-edit">
                                         <input
@@ -349,6 +351,7 @@ definePageMeta({ middleware: "admin" });
 
 interface AppUser {
     email: string;
+    cactus_user_id: number | string | null;
     name: string | null;
     phone: string | null;
     brand_slug: string | null;
@@ -686,6 +689,11 @@ useHead({ title: "Painel Admin - Rainha da Bet" });
     color: var(--adm-text);
     position: relative;
     font-family: "Manrope", sans-serif;
+}
+.adm-player-id {
+    color: var(--adm-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: nowrap;
 }
 .adm-wrap {
     position: relative;

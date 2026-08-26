@@ -124,6 +124,7 @@ definePageMeta({
 });
 
 const brands = BRANDS;
+const route = useRoute();
 
 const { login, loading, error, isAuthenticated } = useAuth();
 
@@ -164,6 +165,14 @@ onMounted(() => {
         navigateTo("/");
         return;
     }
+
+    const reasonMessages: Record<string, string> = {
+        session_expired: "Sua sessão expirou. Faça login novamente.",
+        wrong_tenant: "Esta sessão pertence a outro acesso. Faça login novamente.",
+        blocked: "Sua conta está bloqueada. Entre em contato com o suporte.",
+    };
+    const reason = String(route.query.reason || "");
+    if (reasonMessages[reason]) errorMessage.value = reasonMessages[reason];
     refreshPush(null);
 });
 
