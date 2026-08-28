@@ -49,7 +49,33 @@
             <div class="possivel-entrada-header" :style="{ background: headerGradient, borderBottom: `2px solid ${valueSecondaryColor}` }">
             </div>
             <div class="possivel-entrada-content">
-              <div class="entrada-indicator">
+              <!-- Ainda verificando o saldo: spinner neutro em vez do cadeado,
+                   senao quem TEM saldo ve a trava piscar enquanto o perfil carrega. -->
+              <div v-if="!balanceChecked" class="entrada-indicator">
+                <div class="loading-spinner">
+                  <Icon name="ph:spinner-bold" class="spinner" :style="{ color: valuePrimaryColor }" />
+                </div>
+              </div>
+
+              <!-- Saldo abaixo do minimo: trava VISUAL com chamada pra depositar. -->
+              <div v-else-if="!hasMinBalanceForSignals" class="entrada-indicator entrada-locked">
+                <Icon name="ph:lock-key-bold" class="entrada-locked-icon" :style="{ color: valuePrimaryColor }" />
+                <div class="entrada-locked-title">
+                  Saldo mínimo de {{ formattedMinBalance }} para liberar os sinais
+                </div>
+                <div class="entrada-locked-balance">Seu saldo: {{ formattedBalance }}</div>
+                <button
+                  type="button"
+                  class="entrada-locked-btn"
+                  :style="{ background: headerGradient }"
+                  @click="openDepositModal"
+                >
+                  <Icon name="ph:wallet-bold" />
+                  Depositar
+                </button>
+              </div>
+
+              <div v-else class="entrada-indicator">
                 <div v-if="!sinal" class="entrada-message">{{ catalogadorUi.signalTitle }}</div>
                 <transition name="fade" mode="out-in">
                   <div v-if="isLoadingSinal && !sinal" class="loading-spinner" key="loading-sinal">
@@ -440,6 +466,7 @@
       @retry="retryFromModal"
       @close="gameErrorModalDismissed = true"
     />
+    <DepositModal />
   </div>
 </template>
 
@@ -447,7 +474,41 @@
 import { getCatalogadorQueries, getGameRouteConfig, resolveGameRouteId } from '../../constants/gameRoutes'
 
 const route = useRoute()
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, balance, formattedBalance, fetchUserProfile } = useAuth()
+const { openModal: openDepositModal } = useDeposit()
+
+// Saldo minimo (em reais) para liberar o painel de sinais.
+// ATENCAO: este gate e APENAS VISUAL. Ele nao impede o WebSocket de entregar o
+// sinal nem esconde o valor de quem abrir o DevTools — serve para orientar o
+// usuario, nao para proteger o conteudo. Bloqueio real teria de ser no servidor.
+const MIN_BALANCE_FOR_SIGNALS = 10
+
+// Fica false ate a primeira consulta de perfil terminar, para nao piscar o
+// cadeado para quem tem saldo.
+const balanceChecked = ref(false)
+
+const hasMinBalanceForSignals = computed(() => balance.value >= MIN_BALANCE_FOR_SIGNALS)
+
+const formattedMinBalance = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+}).format(MIN_BALANCE_FOR_SIGNALS)
+
+// Atualiza o saldo. Marca como verificado mesmo em caso de erro, senao a
+// interface ficaria presa no spinner para sempre.
+const refreshBalance = async () => {
+  if (!isAuthenticated.value) {
+    balanceChecked.value = true
+    return
+  }
+  try {
+    await fetchUserProfile()
+  } catch (err) {
+    console.error('[jogo] Falha ao atualizar saldo:', err)
+  } finally {
+    balanceChecked.value = true
+  }
+}
 const { startGame, fetchGameConfig, gameSignalConfig, isLoading: isLoadingGame, error: gameError, errorCode: gameErrorCode } = useGame()
 const gameErrorModalDismissed = ref(false)
 const showGameErrorModal = computed(() => gameErrorCode.value === 'START_GAME_REJECTED' && !gameErrorModalDismissed.value)
@@ -1452,6 +1513,11 @@ watch(gameErrorCode, (code) => {
 onMounted(() => {
   loadGame()
   fetchResults()
+  refreshBalance()
+
+  // Quem depositar em outra aba ve o painel liberar ao voltar, sem recarregar.
+  window.addEventListener('focus', refreshBalance)
+  window.addEventListener('pageshow', refreshBalance)
 })
 
 onUnmounted(() => {
@@ -1459,6 +1525,9 @@ onUnmounted(() => {
     clearInterval(resultsInterval)
     resultsInterval = null
   }
+
+  window.removeEventListener('focus', refreshBalance)
+  window.removeEventListener('pageshow', refreshBalance)
 
   disconnectSignalWs()
 })
@@ -2906,4 +2975,58 @@ useHead({
     margin-top: 16px;
   }
 }
+
+/* Painel de sinal travado por saldo insuficiente */
+.entrada-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.entrada-locked-icon {
+  font-size: 26px;
+  opacity: 0.9;
+}
+
+.entrada-locked-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.entrada-locked-balance {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.entrada-locked-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.entrada-locked-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.entrada-locked-btn:active {
+  transform: translateY(0);
+}
+
 </style>
