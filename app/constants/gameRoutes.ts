@@ -102,6 +102,20 @@ export const GAME_ROUTE_DEFINITIONS: Record<string, GameRouteDefinition> = {
     },
     signalRef: { collection: 'futebol_studio_ao_vivo', name: 'football-studio-ao-vivo-default' }
   },
+  'futebol-brasileiro': {
+    id: 'futebol-brasileiro',
+    displayName: 'Futebol Brasileiro Sports Club',
+    provider: 'GoodGame',
+    startGameSlug: 'goodgame/futebol-brasileiro',
+    catalogador: {
+      // ATENCAO: a collection do catalogador e 'goodgames' (plural), diferente
+      // do 'goodgame' que aparece no startGameSlug. Confirmado contra a API:
+      // ela lista evolution, playtech, pragmatic, goodgames, spribe.
+      collection: 'goodgames',
+      game: 'Futebol Brasileiro Sports Club'
+    },
+    signalRef: { collection: 'futebol_brasileiro_sports_club', name: 'goodgame-futebol-brasileiro' }
+  },
   'dragon-tiger': {
     id: 'dragon-tiger',
     displayName: 'Dragon Tiger',

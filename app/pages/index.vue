@@ -653,6 +653,11 @@ const premiumGames = ref([
         image: "/games/football-studio-br.png",
     },
     {
+        id: "futebol-brasileiro",
+        name: "FUTEBOL BRASILEIRO SPORTS CLUB",
+        image: "/games/football-studio-br.png",
+    },
+    {
         id: "football-studio",
         name: "FOOTBALL STUDIO",
         image: "/games/football-studio.png",

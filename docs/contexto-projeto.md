@@ -109,6 +109,7 @@ Todos em `app/constants/gameRoutes.ts`:
 | `football-studio` | Football Studio | `evolution` | `Football Studio English` | `football_studio_english` | `football-studio-eng-hypeg0` |
 | `football-studio-en` | Football Studio ENGLISH | `evolution` | `Football Studio English` | `football_studio_english` | `football-studio-eng-hypeg0` |
 | `football-studio-ao-vivo` | Futebol Studio Ao Vivo | `evolution` | `Futebol Studio Ao Vivo` | `futebol_studio_ao_vivo` | `football-studio-ao-vivo-default` |
+| `futebol-brasileiro` | Futebol Brasileiro Sports Club | `goodgames` | `Futebol Brasileiro Sports Club` | `futebol_brasileiro_sports_club` | `goodgame-futebol-brasileiro` |
 | `dragon-tiger` | Dragon Tiger | `evolution` | `Dragon Tiger` | `dragon_tiger_evolution` | `dragon-tiger-evo-hypeg1` |
 | `aviator` | Aviator | `spribe` | `aviatorlotogreen` | `aviator_spribe` | `aviator-spribe-hypeg1` |
 | `baccarat` | Baccarat | `evolution` | `Speed Baccarat A` | `baccarat` | `speed-baccarat-a-hypeg1` |
@@ -149,7 +150,7 @@ Todos em `app/constants/gameRoutes.ts`:
 | Jogo | Player | Banker | Tie |
 |---|---|---|---|
 | padrão (bac-bo, baccarat) | Player / P | Banker / B | Tie / T |
-| `football-studio` | Casa / C | Visitante / V | Empate / E |
+| `football-studio`, `football-studio-en`, `football-studio-ao-vivo`, `futebol-brasileiro` | Casa / C | Visitante / V | Empate / E |
 | `dragon-tiger` | Dragon / D | Tiger / T | Empate / E |
 | `aviator` | Azul / A | Roxo / R | Rosa / P |
 
@@ -157,7 +158,7 @@ Todos em `app/constants/gameRoutes.ts`:
 
 | Jogo | Regra |
 |---|---|
-| `football-studio` | `casa→Player`, `visitante→Banker`, `empate→Tie` |
+| jogos de futebol | `casa`/`home→Player`, `visitante`/`away→Banker`, `empate`/`draw→Tie` (Evolution grava em pt, GoodGame em en) |
 | `dragon-tiger` | `red→Player`, `yellow→Banker`, `tie→Tie` |
 | `aviator` | Classifica por `multiplier`: `≥10→Tie`, `≥2→Banker`, `<2→Player` |
 | outros | `player→Player`, `banker→Banker`, `tie→Tie` |
