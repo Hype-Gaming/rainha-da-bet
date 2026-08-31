@@ -518,14 +518,20 @@ const gameId = computed(() => route.params.id as string || 'bac-bo')
 const routeGameConfig = computed(() => getGameRouteConfig(gameId.value))
 const resolvedGameId = computed(() => resolveGameRouteId(gameId.value))
 const isAviator = computed(() => gameId.value === 'aviator')
-const isFootballStudioGame = (gameKey: string) => gameKey === 'football-studio' || gameKey === 'football-studio-ao-vivo'
+const isFootballStudioGame = (gameKey: string) =>
+  gameKey === 'football-studio' ||
+  gameKey === 'football-studio-en' ||
+  gameKey === 'football-studio-ao-vivo' ||
+  gameKey === 'futebol-brasileiro'
 
 type CanonicalWinner = 'Player' | 'Banker' | 'Tie'
 
 const outcomeMeta = computed(() => {
   switch (gameId.value) {
     case 'football-studio':
+    case 'football-studio-en':
     case 'football-studio-ao-vivo':
+    case 'futebol-brasileiro':
       return {
         player: { label: 'Casa', letter: 'C' },
         banker: { label: 'Visitante', letter: 'V' },
@@ -573,7 +579,9 @@ const catalogadorUi = computed(() => {
         loginLabel: 'Entrar para jogar'
       }
     case 'football-studio':
+    case 'football-studio-en':
     case 'football-studio-ao-vivo':
+    case 'futebol-brasileiro':
       return {
         historyTitle: `Histórico do ${routeGameConfig.value.displayName}`,
         resultsTitle: 'Últimos resultados',
@@ -752,9 +760,11 @@ const normalizeWinner = (rawWinner: unknown, rawColor: string | undefined, rawSc
   const color = String(rawColor ?? '').trim().toLowerCase()
 
   if (isFootballStudioGame(gameKey)) {
-    if (/^casa$/i.test(winner)) return 'Player'
-    if (/^visitante$/i.test(winner)) return 'Banker'
-    if (/^empate$/i.test(winner)) return 'Tie'
+    // A Evolution grava casa/visitante/empate; a GoodGame grava HOME/AWAY/DRAW.
+    // Aceitamos as duas codificacoes para o mesmo mapeamento canonico.
+    if (/^(casa|home)$/i.test(winner)) return 'Player'
+    if (/^(visitante|away)$/i.test(winner)) return 'Banker'
+    if (/^(empate|draw)$/i.test(winner)) return 'Tie'
   }
 
   if (gameKey === 'dragon-tiger') {
