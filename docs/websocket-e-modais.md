@@ -21,7 +21,7 @@ onMounted → loadGame() → fetchGameConfig(gameId) → connectSignalWs()
 | Constante | Valor padrão | Descrição |
 |---|---|---|
 | `SIGNAL_API_BASE` | `https://api-apps-server.automagroup.com.br` | API que fornece a config do WSS |
-| `signalUrl` (fallback) | `wss://ws-signals.grupoautoma.com/ws` | URL padrão usada se a API retornar 404 |
+| `signalUrl` (fallback) | `wss://ws-signals.automagroup.cloud/ws` | URL padrão usada se a API retornar 404 |
 | `SIGNAL_RECONNECT_MS` | `3000` | Tempo (ms) para reconexão automática |
 
 **Busca da config via `fetchGameConfig(gameId)`** (`useGame.ts`):
@@ -268,7 +268,7 @@ jogo/[id].vue
 | Arquivo | Campo | Valor atual |
 |---|---|---|
 | `useGame.ts` | `SIGNAL_API_BASE` | `https://api-apps-server.automagroup.com.br` |
-| `useGame.ts` | fallback `signalUrl` | `wss://ws-signals.grupoautoma.com/ws` |
+| `useGame.ts` | fallback `signalUrl` | `wss://ws-signals.automagroup.cloud/ws` |
 | `useDeposit.ts` | `API_BASE_URL` | `https://routes-eb.grupoautoma.com` |
 | `useDeposit.ts` | `BRAND_SLUG` | `esportiva` |
 | `KycModal.vue` | link KYC | `https://go.aff.esportiva.bet/imo5e5c7` |
