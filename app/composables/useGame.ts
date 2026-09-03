@@ -2,6 +2,11 @@ import { getGameRouteConfig } from '../constants/gameRoutes'
 
 // Composable para gerenciar jogos e integração com API
 const SIGNAL_API_BASE = 'https://api-apps-server.automagroup.com.br'
+
+// URL do WebSocket de sinais usada quando a API de config nao responde.
+// Fonte unica: os dois caminhos de fallback abaixo referenciam esta constante,
+// para nao existir duas strings que precisem ser trocadas juntas.
+const SIGNAL_WS_FALLBACK_URL = 'wss://ws-signals.automagroup.cloud/ws'
 const UNAVAILABLE_SIGNAL_CONFIGS = new Set<string>()
 
 export interface GameSignalConfig {
@@ -30,7 +35,7 @@ export const useGame = () => {
     const configKey = `${ref.collection}/${ref.name}`
     if (UNAVAILABLE_SIGNAL_CONFIGS.has(configKey)) {
       const fallback: GameSignalConfig = {
-        signalUrl: 'wss://ws-signals.grupoautoma.com/ws',
+        signalUrl: SIGNAL_WS_FALLBACK_URL,
         signalName: ref.name,
         signalCollection: ref.collection
       }
@@ -62,7 +67,7 @@ export const useGame = () => {
       if (!ref) return null
 
       const fallback: GameSignalConfig = {
-        signalUrl: 'wss://ws-signals.grupoautoma.com/ws',
+        signalUrl: SIGNAL_WS_FALLBACK_URL,
         signalName: ref.name,
         signalCollection: ref.collection
       }

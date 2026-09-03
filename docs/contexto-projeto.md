@@ -72,7 +72,7 @@ docs/
 | Auth / Start Game | `https://routes-eb.grupoautoma.com` | Login, iniciar iframe do jogo |
 | Signal Config | `https://api-apps-server.automagroup.com.br` | Config do WebSocket por jogo (retorna 404 atualmente → fallback hardcoded) |
 | Catalogador | `https://casino-data.grupoautoma.com` | Histórico de resultados por jogo |
-| WebSocket Sinais | `wss://ws-signals.grupoautoma.com/ws` | Sinais ao vivo (subscribe por collection + name) |
+| WebSocket Sinais | `wss://ws-signals.automagroup.cloud/ws` | Sinais ao vivo (subscribe por collection + name) |
 
 ### Constantes que precisam ser trocadas em novo projeto
 
@@ -82,7 +82,7 @@ docs/
 | `useGame.ts` | `SIGNAL_API_BASE` | `https://api-apps-server.automagroup.com.br` |
 | `useGame.ts` | `BRAND_SLUG` | `esportiva` |
 | `jogo/[id].vue` | `CATALOGADOR_BASE` | `https://casino-data.grupoautoma.com` |
-| `jogo/[id].vue` | fallback `signalUrl` | `wss://ws-signals.grupoautoma.com/ws` |
+| `useGame.ts` | `SIGNAL_WS_FALLBACK_URL` | `wss://ws-signals.automagroup.cloud/ws` |
 
 ---
 
