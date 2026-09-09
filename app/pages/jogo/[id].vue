@@ -889,6 +889,27 @@ const handleWsMessage = (rawData: string) => {
   }
 }
 
+const buildSignalWsUrl = (baseUrl: string, name: string, collection?: string) => {
+  try {
+    const parsed = new URL(baseUrl)
+    parsed.searchParams.set('name', name)
+
+    if (collection) {
+      parsed.searchParams.set('collection', collection)
+    } else {
+      parsed.searchParams.delete('collection')
+    }
+
+    return parsed.toString()
+  } catch {
+    // URL invalida/relativa: monta a query string na mao
+    const params = new URLSearchParams({ name })
+    if (collection) params.set('collection', collection)
+
+    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${params.toString()}`
+  }
+}
+
 const connectSignalWs = () => {
   const cfg = gameSignalConfig.value
   if (!cfg?.signalUrl) return
@@ -917,9 +938,16 @@ const connectSignalWs = () => {
     wsUrl = wsUrl.replace(/^ws:\/\//i, 'wss://')
   }
 
+  // O servidor assina a sala ja no handshake quando name/collection vem na
+  // query string. Isso evita a janela em que o socket recebe o history de
+  // outra collection antes do subscribe ser processado.
+  wsUrl = buildSignalWsUrl(wsUrl, name, collection)
+
   signalWs = new WebSocket(wsUrl)
 
   signalWs.onopen = () => {
+    // Fallback para servidores que so assinam via mensagem; o subscribe e
+    // idempotente quando a query string ja resolveu a assinatura.
     const payload: Record<string, string> = {
       type: 'subscribe',
       name
