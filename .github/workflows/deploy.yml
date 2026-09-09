@@ -20,6 +20,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configurar Node para verificar sinais
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verificar assinatura dos sinais WSS
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          node scripts/migrar-sinais-wss.mjs 2>&1 | tee /tmp/verificar-sinais-wss.log
+          status=${PIPESTATUS[0]}
+          {
+            echo '## Verificação dos sinais WSS'
+            echo
+            echo '```text'
+            cat /tmp/verificar-sinais-wss.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
       - name: Configurar SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
