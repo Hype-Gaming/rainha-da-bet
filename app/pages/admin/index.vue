@@ -303,6 +303,33 @@
                 <div class="adm-panel-head">
                     <h2><Icon name="ph:gear-six-bold" /> Configurações</h2>
                 </div>
+                <div class="adm-maintenance" :class="{ active: maintenanceEnabled }">
+                    <div class="adm-maintenance-head">
+                        <div>
+                            <strong>Modo de manutenção</strong>
+                            <p>Bloqueia o app para usuários. O painel admin continua acessível.</p>
+                        </div>
+                        <button
+                            type="button" class="adm-switch" :class="{ on: maintenanceEnabled }"
+                            :aria-pressed="maintenanceEnabled"
+                            :aria-label="maintenanceEnabled ? 'Desativar manutenção' : 'Ativar manutenção'"
+                            @click="maintenanceEnabled = !maintenanceEnabled"
+                        ><span></span></button>
+                    </div>
+                    <label class="adm-field-label" for="maintenance-title">Título</label>
+                    <input id="maintenance-title" v-model="maintenanceTitle" type="text" maxlength="100" class="adm-input adm-maintenance-input" />
+                    <label class="adm-field-label" for="maintenance-message">Mensagem</label>
+                    <textarea id="maintenance-message" v-model="maintenanceMessage" maxlength="500" rows="3" class="adm-input adm-maintenance-input adm-textarea"></textarea>
+                    <div class="adm-maintenance-actions">
+                        <span :class="maintenanceEnabled ? 'maintenance-on' : 'maintenance-off'">
+                            {{ maintenanceEnabled ? "O app ficará indisponível" : "O app está disponível" }}
+                        </span>
+                        <button class="adm-btn-primary" :disabled="savingMaintenance" @click="saveMaintenance">
+                            <Icon name="ph:floppy-disk-bold" />
+                            {{ savingMaintenance ? "Salvando..." : "Aplicar configuração" }}
+                        </button>
+                    </div>
+                </div>
                 <label class="adm-field-label">WhatsApp de suporte (link ou número)</label>
                 <div class="adm-ftd">
                     <input
@@ -418,6 +445,10 @@ const savingFtd = ref(false);
 const supportInput = ref("");
 const supportHref = ref("");
 const savingSupport = ref(false);
+const maintenanceEnabled = ref(false);
+const maintenanceTitle = ref("Estamos em manutenção");
+const maintenanceMessage = ref("Estamos fazendo alguns ajustes para melhorar sua experiência. Voltaremos em breve.");
+const savingMaintenance = ref(false);
 
 const busyEmail = ref<string | null>(null);
 const blockTarget = ref<AppUser | null>(null);
@@ -557,7 +588,38 @@ const saveSupport = async () => {
     }
 };
 
-const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity(), fetchSupport()]);
+const fetchMaintenance = async () => {
+    try {
+        const res = await $fetch<{ enabled: boolean; title: string; message: string }>("/api/settings/maintenance");
+        maintenanceEnabled.value = res.enabled;
+        maintenanceTitle.value = res.title;
+        maintenanceMessage.value = res.message;
+    } catch { /* silencioso */ }
+};
+
+const saveMaintenance = async () => {
+    savingMaintenance.value = true;
+    try {
+        const res = await adminFetch<{ enabled: boolean; title: string; message: string }>("/api/admin/settings/maintenance", {
+            method: "POST",
+            body: {
+                enabled: maintenanceEnabled.value,
+                title: maintenanceTitle.value.trim(),
+                message: maintenanceMessage.value.trim(),
+            },
+        });
+        maintenanceEnabled.value = res.enabled;
+        maintenanceTitle.value = res.title;
+        maintenanceMessage.value = res.message;
+        showToast(res.enabled ? "Modo de manutenção ativado." : "Modo de manutenção desativado.");
+    } catch {
+        showToast("Erro ao salvar o modo de manutenção.", "error");
+    } finally {
+        savingMaintenance.value = false;
+    }
+};
+
+const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity(), fetchSupport(), fetchMaintenance()]);
 
 // --- Filtros (debounce na busca) ---
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -745,6 +807,23 @@ useHead({ title: "Painel Admin - Rainha da Bet" });
 }
 .adm-btn-ghost:hover:not(:disabled) { border-color: var(--adm-accent); color: var(--adm-accent); }
 .adm-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.adm-maintenance { margin-bottom: 24px; padding: 20px; border: 1px solid var(--adm-border-soft); border-radius: 14px; background: rgba(255,255,255,.018); transition: border-color .2s, background .2s; }
+.adm-maintenance.active { border-color: rgba(251,101,166,.45); background: rgba(251,101,166,.055); }
+.adm-maintenance-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.adm-maintenance-head strong { display: block; margin-bottom: 4px; font-size: 15px; }
+.adm-maintenance-head p { margin: 0; color: var(--adm-muted); font-size: 13px; }
+.adm-switch { position: relative; flex: 0 0 auto; width: 48px; height: 27px; padding: 3px; border: 1px solid var(--adm-border); border-radius: 999px; background: #252936; cursor: pointer; transition: .2s; }
+.adm-switch span { display: block; width: 19px; height: 19px; border-radius: 50%; background: #a6adbd; transition: transform .2s, background .2s; }
+.adm-switch.on { border-color: var(--adm-accent); background: color-mix(in srgb, var(--adm-accent) 35%, #252936); }
+.adm-switch.on span { transform: translateX(19px); background: #fff; }
+.adm-maintenance-input { width: 100%; margin: 7px 0 14px; }
+.adm-textarea { resize: vertical; min-height: 82px; font-family: inherit; line-height: 1.5; }
+.adm-maintenance-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 2px; }
+.maintenance-on, .maintenance-off { font-size: 12px; font-weight: 700; }
+.maintenance-on { color: var(--adm-accent); }
+.maintenance-off { color: #62d49b; }
+@media (max-width: 600px) { .adm-maintenance-actions { align-items: stretch; flex-direction: column; } .adm-maintenance-actions .adm-btn-primary { justify-content: center; } }
 
 .adm-cards {
     display: grid;
