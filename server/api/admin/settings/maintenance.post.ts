@@ -3,22 +3,42 @@ import { requireAdmin } from '../../../utils/admin'
 import {
   DEFAULT_MAINTENANCE_MESSAGE,
   DEFAULT_MAINTENANCE_TITLE,
+  MAX_MAINTENANCE_MESSAGE_LENGTH,
+  MAX_MAINTENANCE_TITLE_LENGTH,
+  setMaintenanceNoCacheHeaders,
   normalizeMaintenanceSettings
 } from '../../../utils/maintenance'
 
 export default defineEventHandler(async (event) => {
+  setMaintenanceNoCacheHeaders(event)
   const adminEmail = await requireAdmin(event)
   const body = await readBody(event)
 
-  if (typeof body?.enabled !== 'boolean') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw createError({ statusCode: 400, message: 'Configuração de manutenção inválida.' })
+  }
+
+  if (typeof body.enabled !== 'boolean') {
     throw createError({ statusCode: 400, message: 'O status da manutenção é obrigatório.' })
   }
 
-  const title = String(body?.title || '').trim() || DEFAULT_MAINTENANCE_TITLE
-  const message = String(body?.message || '').trim() || DEFAULT_MAINTENANCE_MESSAGE
+  if (body.title != null && typeof body.title !== 'string') {
+    throw createError({ statusCode: 400, message: 'O título deve ser um texto.' })
+  }
 
-  if (title.length > 100 || message.length > 500) {
-    throw createError({ statusCode: 400, message: 'Título ou mensagem excede o limite permitido.' })
+  if (body.message != null && typeof body.message !== 'string') {
+    throw createError({ statusCode: 400, message: 'A mensagem deve ser um texto.' })
+  }
+
+  const title = (body.title || '').trim() || DEFAULT_MAINTENANCE_TITLE
+  const message = (body.message || '').trim() || DEFAULT_MAINTENANCE_MESSAGE
+
+  if (title.length > MAX_MAINTENANCE_TITLE_LENGTH) {
+    throw createError({ statusCode: 400, message: `O título deve ter no máximo ${MAX_MAINTENANCE_TITLE_LENGTH} caracteres.` })
+  }
+
+  if (message.length > MAX_MAINTENANCE_MESSAGE_LENGTH) {
+    throw createError({ statusCode: 400, message: `A mensagem deve ter no máximo ${MAX_MAINTENANCE_MESSAGE_LENGTH} caracteres.` })
   }
 
   const updatedAt = new Date()
