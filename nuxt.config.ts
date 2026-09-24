@@ -26,6 +26,13 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   ssr: false,
 
+  runtimeConfig: {
+    public: {
+      routesApiBase: process.env.NUXT_PUBLIC_ROUTES_API_BASE || 'https://routes-eb.grupoautoma.com',
+      turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'
+    }
+  },
+
   app: {
     head: {
       link: [

@@ -68,7 +68,17 @@
                     {{ errorMessage }}
                 </div>
 
-                <button type="submit" class="btn-login" :disabled="loading">
+                <div
+                    v-show="captchaRequired"
+                    ref="turnstileEl"
+                    class="captcha-box"
+                />
+
+                <button
+                    type="submit"
+                    class="btn-login"
+                    :disabled="loading || (captchaRequired && !captchaToken)"
+                >
                     <Icon v-if="loading" name="ph:spinner" class="spinner" />
                     <span v-if="loading">Entrando...</span>
                     <span v-else>Entrar</span>
@@ -136,6 +146,131 @@ const form = reactive({
     password: "",
 });
 
+// Captcha (Cloudflare Turnstile). A exigência e o tema vêm da configuração
+// pública da casa; o sitekey do runtime é usado como fallback.
+const brandSlug = computed(() => brands[0]?.slug || "esportiva");
+const baseDomain = computed(() => brands[0]?.baseDomain || "bet.br");
+const captchaRequired = ref(false);
+const turnstileSiteKey = ref("");
+const captchaStyle = ref<"dark" | "light">("dark");
+const captchaToken = ref("");
+const turnstileEl = ref<HTMLElement | null>(null);
+let turnstileWidgetId: string | null = null;
+
+function loadTurnstileScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if ((window as any).turnstile) return resolve();
+        const existing = document.querySelector(
+            "script[data-turnstile]",
+        ) as HTMLScriptElement | null;
+        if (existing) {
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener(
+                "error",
+                () => reject(new Error("turnstile load error")),
+                { once: true },
+            );
+            return;
+        }
+        const script = document.createElement("script");
+        script.src =
+            "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.setAttribute("data-turnstile", "");
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("turnstile load error"));
+        document.head.appendChild(script);
+    });
+}
+
+async function renderTurnstile() {
+    if (!turnstileSiteKey.value || !turnstileEl.value) return;
+    try {
+        await loadTurnstileScript();
+        const turnstile = (window as any).turnstile;
+        if (!turnstile) return;
+        if (turnstileWidgetId !== null) {
+            try {
+                turnstile.remove(turnstileWidgetId);
+            } catch { /* noop */ }
+            turnstileWidgetId = null;
+        }
+        turnstileWidgetId = turnstile.render(turnstileEl.value, {
+            sitekey: turnstileSiteKey.value,
+            theme: captchaStyle.value,
+            callback: (token: string) => (captchaToken.value = token),
+            "expired-callback": () => (captchaToken.value = ""),
+            "error-callback": () => (captchaToken.value = ""),
+        });
+    } catch {
+        // A API de login continua responsável por rejeitar uma tentativa sem token.
+    }
+}
+
+function resetTurnstile() {
+    captchaToken.value = "";
+    const turnstile = (window as any).turnstile;
+    if (turnstile && turnstileWidgetId !== null) {
+        try {
+            turnstile.reset(turnstileWidgetId);
+        } catch { /* noop */ }
+    }
+}
+
+let authConfigRequest = 0;
+
+async function loadAuthConfig() {
+    const request = ++authConfigRequest;
+    try {
+        const cfg = await $fetch<{
+            enableCaptcha: boolean;
+            enableCaptchaLogin: boolean;
+            captchaServices: string[];
+            turnstileSiteKey: string;
+            captchaStyle: "dark" | "light";
+        }>("/api/session/auth-config", {
+            query: { brandSlug: brandSlug.value, baseDomain: baseDomain.value },
+        });
+        if (request !== authConfigRequest) return;
+
+        const runtimeConfig = useRuntimeConfig();
+        const siteKey =
+            cfg.turnstileSiteKey ||
+            (runtimeConfig.public.turnstileSiteKey as string) ||
+            "";
+        const services = cfg.captchaServices?.length
+            ? cfg.captchaServices
+            : ["turnstile"];
+        const wantsTurnstile =
+            cfg.enableCaptcha &&
+            cfg.enableCaptchaLogin &&
+            services.includes("turnstile") &&
+            !!siteKey;
+
+        if (wantsTurnstile) {
+            turnstileSiteKey.value = siteKey;
+            captchaStyle.value = cfg.captchaStyle === "light" ? "light" : "dark";
+            captchaRequired.value = true;
+            await nextTick();
+            if (request === authConfigRequest) await renderTurnstile();
+        } else {
+            captchaRequired.value = false;
+            captchaToken.value = "";
+            const turnstile = (window as any).turnstile;
+            if (turnstileWidgetId !== null && turnstile) {
+                try {
+                    turnstile.remove(turnstileWidgetId);
+                } catch { /* noop */ }
+                turnstileWidgetId = null;
+            }
+        }
+    } catch {
+        captchaRequired.value = false;
+        captchaToken.value = "";
+    }
+}
+
 // Notificações push (web push)
 const {
     permission: pushPermission,
@@ -161,6 +296,8 @@ const handleEnablePush = async () => {
 
 // Redirecionar se já estiver autenticado
 onMounted(() => {
+    watch([brandSlug, baseDomain], loadAuthConfig, { immediate: true });
+
     if (isAuthenticated.value) {
         navigateTo("/");
         return;
@@ -185,19 +322,29 @@ const handleLogin = async () => {
         return;
     }
 
+    if (captchaRequired.value && !captchaToken.value) {
+        errorMessage.value = "Complete a verificação de segurança abaixo.";
+        return;
+    }
+
     // Detecta automaticamente: com "@" é e-mail; senão, trata como CPF.
     const isEmail = identifier.includes("@");
 
-    const result = await login(
-        isEmail
-            ? { email: identifier, password: form.password }
-            : { cpf: identifier, password: form.password },
-    );
+    try {
+        const result = await login(
+            isEmail
+                ? { email: identifier, password: form.password }
+                : { cpf: identifier, password: form.password },
+            captchaToken.value,
+        );
 
-    if (result.success) {
-        navigateTo("/");
-    } else {
-        errorMessage.value = result.message || "Erro ao fazer login";
+        if (result.success) {
+            navigateTo("/");
+        } else {
+            errorMessage.value = result.message || "Erro ao fazer login";
+        }
+    } finally {
+        if (captchaRequired.value) resetTurnstile();
     }
 };
 </script>
@@ -243,6 +390,12 @@ const handleLogin = async () => {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+.captcha-box {
+    min-height: 65px;
+    display: flex;
+    justify-content: center;
 }
 
 .login-type-toggle {

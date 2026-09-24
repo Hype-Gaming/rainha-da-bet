@@ -199,11 +199,11 @@ export const useAuth = () => {
   }
 
   // Login com email ou CPF
-  const login = async (credentials: { 
+  const login = async (credentials: {
     email?: string
     cpf?: string
-    password: string 
-  }): Promise<{ success: boolean; message?: string }> => {
+    password: string
+  }, captchaToken = ''): Promise<{ success: boolean; message?: string }> => {
     loading.value = true
     error.value = null
 
@@ -217,7 +217,8 @@ export const useAuth = () => {
           brand_slug: brand.slug,
           base_domain: brand.baseDomain,
           app_source: 'web',
-          save_cookies: true
+          save_cookies: true,
+          captchaToken
         }
 
         // A API Cactus usa o campo "email" como login único: aceita e-mail OU CPF.
@@ -229,13 +230,8 @@ export const useAuth = () => {
         }
 
         try {
-          const response = await $fetch<LoginResponse>(`${brand.apiBaseUrl}/api/auth/login`, {
+          const response = await $fetch<LoginResponse>('/api/session/login', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Brand-Slug': brand.slug,
-              'X-Base-Domain': brand.baseDomain
-            },
             body
           })
 
