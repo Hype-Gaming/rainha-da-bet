@@ -1,5 +1,5 @@
 <template>
-    <div class="dashboard">
+    <div class="dashboard" :style="tenantStyle">
         <!-- Header -->
         <header class="header">
             <div class="header-left">
@@ -61,6 +61,19 @@
                 </div>
             </div>
         </header>
+
+        <nav class="member-shortcuts" aria-label="Recursos principais">
+            <NuxtLink
+                v-for="shortcut in memberExperience.shortcuts"
+                :key="shortcut.href"
+                :to="shortcut.href"
+                class="member-shortcut"
+                @click="handleShortcutClick($event, shortcut.href)"
+            >
+                <span><Icon :name="shortcut.icon" /></span>
+                {{ shortcut.label }}
+            </NuxtLink>
+        </nav>
 
         <!-- Main Content -->
         <div class="main-content">
@@ -384,22 +397,23 @@
                 class="grupo-modal-overlay"
                 @click="closeGrupoModal"
             >
-                <div class="grupo-modal" @click.stop>
-                    <button class="grupo-modal-close" @click="closeGrupoModal">
+                <div class="grupo-modal" role="dialog" aria-modal="true" :aria-labelledby="'campaign-title'" @click.stop>
+                    <button ref="campaignClose" class="grupo-modal-close" aria-label="Fechar campanha" @click="closeGrupoModal">
                         <Icon name="ph:x-bold" />
                     </button>
                     <a
-                        :href="socialLinks.whatsapp"
+                        :href="memberExperience.campaignLink"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="grupo-banner-link"
                         @click="closeGrupoModal"
                     >
                         <img
-                            src="/banners/ENTRE-NA-MINHA-COMUNIDADE-DUDA.png"
-                            alt="Entre na minha comunidade"
+                            :src="memberExperience.campaignImage"
+                            :alt="memberExperience.campaignTitle"
                             class="grupo-banner-img"
                         />
+                        <span class="campaign-copy"><strong id="campaign-title">{{ memberExperience.campaignTitle }}</strong><small>{{ memberExperience.campaignMessage }}</small></span>
                     </a>
                 </div>
             </div>
@@ -416,6 +430,8 @@ definePageMeta({
 
 const { user, logout, isAuthenticated, formattedBalance, fetchUserProfile } =
     useAuth();
+const { memberExperience, refreshMemberExperience } = useMemberExperience();
+const tenantStyle = computed(() => ({ "--tenant-primary": memberExperience.primaryColor }));
 const { openModal: openDepositModal } = useDeposit();
 const {
     isSubscribed,
@@ -472,7 +488,14 @@ const handleEnablePush = async () => {
 };
 
 // Atualizar balance e verificar assinatura ao montar a página
-onMounted(() => {
+onMounted(async () => {
+    await refreshMemberExperience();
+    if (memberExperience.campaignEnabled && !sessionStorage.getItem("member_campaign_seen")) {
+        showGrupoModal.value = true;
+        sessionStorage.setItem("member_campaign_seen", "1");
+        await nextTick();
+        campaignClose.value?.focus();
+    }
     if (isAuthenticated.value) {
         fetchUserProfile();
     }
@@ -516,6 +539,10 @@ const requireAuth = (event?: Event) => {
 
 const guardRoute = (event: Event) => {
     requireAuth(event);
+};
+
+const handleShortcutClick = (event: Event, href: string) => {
+    if (href !== "/torneios") requireAuth(event);
 };
 
 const handleDepositClick = () => {
@@ -583,6 +610,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    document.body.style.overflow = "";
     document.removeEventListener("click", closeDropdown);
     window.removeEventListener("focus", handleWindowFocus);
     window.removeEventListener("pageshow", handleWindowFocus);
@@ -691,12 +719,17 @@ const claudeGames = ref([
 ]);
 
 const showGrupoModal = ref(false);
+const campaignClose = ref<HTMLButtonElement | null>(null);
 const openGrupoModal = () => {
     showGrupoModal.value = true;
 };
 const closeGrupoModal = () => {
     showGrupoModal.value = false;
 };
+
+watch(showGrupoModal, (open) => {
+    document.body.style.overflow = open ? "hidden" : "";
+});
 
 const handleLockedGameClick = (event: MouseEvent, gameId: string) => {
     event.preventDefault();
@@ -936,6 +969,46 @@ const highlights = ref([
     padding: 24px;
     gap: 24px;
 }
+
+.member-shortcuts {
+    max-width: 1380px;
+    margin: 18px auto 0;
+    padding: 0 24px;
+    display: flex;
+    justify-content: center;
+    gap: clamp(16px, 4vw, 42px);
+    overflow-x: auto;
+}
+
+.member-shortcut {
+    min-width: 74px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #d7d7dc;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+}
+
+.member-shortcut span {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--tenant-primary, #fb65a6) 38%, #333);
+    border-radius: 50%;
+    color: var(--tenant-primary, #fb65a6);
+    font-size: 25px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--tenant-primary, #fb65a6) 13%, #171717), #0c0c0e);
+    box-shadow: 0 10px 30px #0007;
+    transition: transform .2s, border-color .2s;
+}
+
+.member-shortcut:hover span,
+.member-shortcut:focus-visible span { transform: translateY(-3px); border-color: var(--tenant-primary, #fb65a6); }
 
 /* Sidebar */
 .sidebar {
@@ -1619,6 +1692,18 @@ const highlights = ref([
     overflow: hidden;
     animation: modalIn 0.3s ease;
 }
+
+.campaign-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px 20px 20px;
+    color: #fff;
+    text-align: center;
+}
+
+.campaign-copy strong { font-size: 20px; }
+.campaign-copy small { color: #aaa; line-height: 1.5; }
 
 @keyframes modalIn {
     from {
