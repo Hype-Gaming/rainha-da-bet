@@ -4,7 +4,7 @@ export default defineNuxtRouteMiddleware((to) => {
 
   const { isAuthenticated } = useAuth()
 
-  const publicRoutes = ['/', '/torneios', '/auth/login', '/auth/register', '/auth/forgot-password']
+  const publicRoutes = ['/', '/torneio', '/torneios', '/roleta', '/loja', '/login', '/auth/login', '/auth/register', '/auth/forgot-password']
 
   if (publicRoutes.includes(to.path)) {
     if (isAuthenticated.value && to.path === '/auth/login') {

@@ -18,7 +18,7 @@
                     <Icon
                         name="ph:info"
                         class="balance-info"
-                        @click="handleDepositClick"
+                        @click="openWallet"
                     />
                 </div>
                 <button class="btn-deposit" @click="handleDepositClick">
@@ -64,135 +64,55 @@
 
         <nav class="member-shortcuts" aria-label="Recursos principais">
             <NuxtLink
-                v-for="shortcut in memberExperience.shortcuts"
-                :key="shortcut.href"
+                v-for="shortcut in homeConfig.shortcuts"
+                :key="shortcut.label"
                 :to="shortcut.href"
+                :external="shortcut.external"
+                :target="shortcut.external ? '_blank' : undefined"
+                :rel="shortcut.external ? 'noopener noreferrer' : undefined"
                 class="member-shortcut"
-                @click="handleShortcutClick($event, shortcut.href)"
+                @click="handleShortcutClick($event, shortcut)"
             >
-                <span><Icon :name="shortcut.icon" /></span>
+                <span><img v-if="shortcutImage(shortcut)" :src="shortcutImage(shortcut)" :alt="shortcut.label"><Icon v-else :name="shortcut.icon" /></span>
                 {{ shortcut.label }}
             </NuxtLink>
         </nav>
 
+        <div class="home-extras">
+            <a :href="homeConfig.liveHref" target="_blank" rel="noopener noreferrer" class="live">
+                <i /><div><small>AO VIVO</small><strong>{{ homeConfig.liveTitle }}</strong></div><span>{{ homeConfig.liveAt }}</span><b>Entrar <Icon name="ph:arrow-right-bold" /></b>
+            </a>
+            <section class="xp" aria-label="Progresso">
+                <div><span>{{ homeConfig.xpLabel }}</span><strong>{{ homeConfig.xpCurrent }} / {{ homeConfig.xpGoal }} XP</strong></div>
+                <div class="track" role="progressbar" aria-label="Progresso de XP" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="xpPercent"><i :style="{ width: xpPercent + '%' }" /></div>
+            </section>
+            <div class="community"><span><Icon name="ph:users-three-bold" /><strong>{{ homeConfig.members.toLocaleString('pt-BR') }}</strong> membros</span><span><i /><strong>{{ homeConfig.playingNow }}</strong> jogando agora</span></div>
+        </div>
+
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Sidebar -->
-            <aside class="sidebar">
-                <button v-if="!isPaid" class="btn-confirmar-compra" @click="handleSubscriptionClick">
-                    <Icon name="ph:lock-open-bold" />
-                    Confirmar compra
-                </button>
-
-                <h2 class="sidebar-title">Notícias recentes</h2>
-
-                <div class="news-card featured">
-                    <div class="news-badge">ÚLTIMAS</div>
-                    <h3 class="news-title-big">NOTÍCIAS</h3>
-                </div>
-
-                <!-- Ativar notificações push (default/granted e ainda não inscrito) -->
-                <button
-                    v-if="showPushPrompt"
-                    type="button"
-                    class="push-prompt"
-                    :disabled="pushLoading"
-                    @click="handleEnablePush"
-                >
-                    <div class="push-prompt-icon">
-                        <Icon
-                            :name="
-                                pushLoading
-                                    ? 'ph:spinner-bold'
-                                    : 'ph:bell-ringing-bold'
-                            "
-                            :class="{ spin: pushLoading }"
-                        />
-                    </div>
-                    <div class="push-prompt-text">
-                        <strong>Ativar notificações</strong>
-                        <span v-if="pushError" class="push-prompt-error">{{
-                            pushError
-                        }}</span>
-                        <span v-else>Receba avisos e sinais em primeira mão</span>
-                    </div>
-                </button>
-
-                <!-- Permissão bloqueada: explica como desbloquear -->
-                <div v-else-if="pushBlocked" class="push-prompt push-blocked">
-                    <div class="push-prompt-icon">
-                        <Icon name="ph:bell-slash-bold" />
-                    </div>
-                    <div class="push-prompt-text">
-                        <strong>Notificações bloqueadas</strong>
-                        <span
-                            >Toque no 🔒 ao lado do endereço → Notificações →
-                            Permitir, e recarregue a página.</span
-                        >
-                    </div>
-                </div>
-
-                <NuxtLink
-                    :to="news.external ? news.href : news.href || '#'"
-                    :href="news.external ? news.href : undefined"
-                    :target="news.external ? '_blank' : undefined"
-                    :rel="news.external ? 'noopener noreferrer' : undefined"
-                    :external="news.external"
-                    class="news-item"
-                    v-for="(news, index) in newsItems"
-                    :key="index"
-                    @click="handleNewsClick($event, news)"
-                >
-                    <div class="news-icon">
-                        <Icon :name="news.icon" class="news-icon-svg" />
-                    </div>
-                    <div class="news-content">
-                        <h4 class="news-title">{{ news.title }}</h4>
-                        <p class="news-description">{{ news.description }}</p>
-                    </div>
-                </NuxtLink>
-            </aside>
-
             <!-- Center Content -->
             <div class="center-content">
-                <!-- Banner Carousel -->
-                <div class="banner-carousel">
-                    <button class="carousel-btn prev" @click="prevBanner">
-                        <Icon name="ph:caret-left-bold" />
-                    </button>
-                    <div class="banner-slides">
-                        <div
+                <!-- Destaque: vídeo ou carrossel -->
+                <section v-if="heroVideoSrc" class="hero-video" aria-label="Vídeo de destaque">
+                    <video :src="heroVideoSrc" :poster="banners[0]?.image" controls playsinline preload="metadata" />
+                </section>
+                <section v-else-if="banners.length" class="banners" aria-label="Destaques">
+                    <div ref="bannerTrack" class="banner-track" @scroll.passive="onBannerScroll">
+                        <a
+                            v-for="(banner, index) in banners"
+                            :key="index"
+                            :href="banner.href"
+                            :target="banner.external ? '_blank' : undefined"
+                            :rel="banner.external ? 'noopener noreferrer' : undefined"
                             class="banner-slide"
-                            v-for="(banner, index) in banners"
-                            :key="index"
-                            :class="{ active: currentBanner === index }"
-                        >
-                            <a
-                                :href="banner.link"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="banner-link"
-                            >
-                                <img :src="banner.image" :alt="banner.alt" />
-                            </a>
-                        </div>
+                        ><img :src="banner.image" :alt="`Banner ${index + 1}`"></a>
                     </div>
-                    <button class="carousel-btn next" @click="nextBanner">
-                        <Icon name="ph:caret-right-bold" />
-                    </button>
-                    <div class="carousel-dots">
-                        <span
-                            class="dot"
-                            v-for="(banner, index) in banners"
-                            :key="index"
-                            :class="{ active: currentBanner === index }"
-                            @click="currentBanner = index"
-                        ></span>
-                    </div>
-                </div>
+                    <div v-if="banners.length > 1" class="dots" aria-hidden="true"><i v-for="(_, index) in banners" :key="index" :class="{ on: index === activeBanner }" /></div>
+                </section>
 
                 <!-- IA Prime -->
-                <div class="games-section">
+                <div id="games" class="games-section">
                     <div class="games-header">
                         <h2 class="games-title">
                             <Icon
@@ -208,7 +128,7 @@
                             :key="index"
                             :href="game.href"
                             class="game-card"
-                            @click="guardRoute"
+                            @click="handleFreeGameClick"
                         >
                             <div class="game-image">
                                 <img
@@ -328,28 +248,27 @@
                     </div>
                 </div>
 
-                <!-- Links Úteis -->
-                <div class="links-section">
-                    <h2 class="section-title">Links úteis</h2>
+                <!-- Central do piloto -->
+                <div class="links-section connection-section">
+                    <header class="connection-head">
+                        <div><small>CENTRAL DO PILOTO</small><h2>Conecte-se. Opere melhor.</h2></div>
+                        <p>Conteúdo, alertas e aprendizado para você evoluir todos os dias.</p>
+                    </header>
                     <div class="links-grid">
                         <NuxtLink
-                            v-for="(link, index) in usefulLinks"
+                            v-for="(link, index) in homeConfig.connectionLinks"
                             :key="index"
                             :to="link.external ? link.href : link.href || '#'"
                             :href="link.external ? link.href : undefined"
                             :target="link.external ? '_blank' : undefined"
-                            :rel="
-                                link.external
-                                    ? 'noopener noreferrer'
-                                    : undefined
-                            "
+                            :rel="link.external ? 'noopener noreferrer' : undefined"
                             :external="link.external"
                             class="link-card"
-                            :class="{ 'link-active': link.active }"
                             @click="handleUsefulLinkClick($event, link)"
                         >
-                            <Icon :name="link.icon" class="link-icon" />
-                            <span class="link-text">{{ link.name }}</span>
+                            <span class="connection-icon"><Icon :name="link.icon" /></span>
+                            <span class="connection-text"><em>{{ link.external ? 'CONECTE-SE' : 'APRENDA AGORA' }}</em><strong>{{ link.label }}</strong><small>{{ link.description || "Acesse agora" }}</small></span>
+                            <Icon name="ph:arrow-up-right-bold" class="connection-arrow" />
                         </NuxtLink>
                     </div>
                 </div>
@@ -382,8 +301,53 @@
             </div>
         </div>
 
+        <section class="responsible"><Icon name="ph:shield-check-bold" /><div><strong>Jogue com responsabilidade</strong><p>Defina seus limites. Jogar deve ser sempre uma forma de entretenimento.</p></div></section>
+
+        <nav class="bottom-nav" aria-label="Navegação principal">
+            <NuxtLink to="/" class="active"><Icon name="ph:house-fill" /><span>Início</span></NuxtLink>
+            <a href="#games"><Icon name="ph:game-controller-bold" /><span>Jogos</span></a>
+            <button type="button" @click="openWallet"><Icon name="ph:wallet-bold" /><span>Carteira</span></button>
+            <NuxtLink to="/torneio"><Icon name="ph:trophy-bold" /><span>Torneio</span></NuxtLink>
+            <NuxtLink to="/gestao"><Icon name="ph:user-circle-bold" /><span>Perfil</span></NuxtLink>
+        </nav>
+
+        <!-- Convite de notificações push (pop-up, uma vez por sessão) -->
+        <Teleport to="body">
+            <div v-if="pushModalOpen" class="push-overlay" @click.self="pushModalOpen = false" @keydown.esc="pushModalOpen = false">
+                <section ref="pushDialog" class="push-modal" role="dialog" aria-modal="true" aria-labelledby="push-title" tabindex="-1">
+                    <button class="push-close" aria-label="Fechar convite de notificações" @click="pushModalOpen = false"><Icon name="ph:x-bold" /></button>
+                    <div class="push-modal-icon"><Icon name="ph:bell-ringing-bold" /></div>
+                    <h2 id="push-title">Ativar notificações</h2>
+                    <p v-if="pushError" class="push-modal-error" role="alert">{{ pushError }}</p>
+                    <p v-else>Receba avisos e sinais em primeira mão.</p>
+                    <button class="push-modal-cta" :disabled="pushLoading" @click="handleEnablePush">
+                        <Icon :name="pushLoading ? 'ph:spinner-bold' : 'ph:bell-ringing-bold'" /> Ativar agora
+                    </button>
+                    <button class="push-modal-later" @click="pushModalOpen = false">Agora não</button>
+                </section>
+            </div>
+        </Teleport>
+
         <!-- Deposit Modal -->
         <DepositModal />
+        <IntroVideoModal />
+        <RouletteInitialModal v-model="rouletteInviteOpen" />
+
+        <Teleport to="body">
+            <div v-if="walletOpen" class="wallet-overlay" @click.self="walletOpen = false" @keydown.esc="walletOpen = false">
+                <section class="wallet-modal" role="dialog" aria-modal="true" aria-labelledby="wallet-title">
+                    <button class="wallet-close" aria-label="Fechar carteira" @click="walletOpen = false"><Icon name="ph:x-bold" /></button>
+                    <div class="wallet-icon"><Icon name="ph:wallet-bold" /></div>
+                    <p id="wallet-title" class="wallet-label">MINHA CARTEIRA</p>
+                    <strong class="wallet-balance">{{ formattedBalance }}</strong>
+                    <div class="wallet-actions">
+                        <button class="wallet-deposit" @click="walletOpen = false; handleDepositClick()"><Icon name="ph:plus-bold" /> Depositar</button>
+                        <button class="wallet-withdraw" @click="withdraw"><Icon name="ph:arrow-up-right-bold" /> Sacar</button>
+                    </div>
+                    <span class="wallet-hint"><Icon name="ph:info-bold" /> O saque é concluído com segurança na plataforma da casa.</span>
+                </section>
+            </div>
+        </Teleport>
 
         <!-- Subscription Modal -->
         <!-- Pop-up de desbloqueio de assinatura desativado a pedido (será removido).
@@ -423,12 +387,13 @@
 
 <script setup lang="ts">
 import { CHECKOUT_URLS } from "../constants/checkoutLinks";
+import { getBrand } from "../../shared/brands";
 
 definePageMeta({
     layout: "default",
 });
 
-const { user, logout, isAuthenticated, formattedBalance, fetchUserProfile } =
+const { user, logout, isAuthenticated, formattedBalance, fetchUserProfile, brandSlug } =
     useAuth();
 const { memberExperience, refreshMemberExperience } = useMemberExperience();
 const tenantStyle = computed(() => ({ "--tenant-primary": memberExperience.primaryColor }));
@@ -483,13 +448,28 @@ const pushBlocked = computed(
     () => pushChecked.value && pushPermission.value === "denied",
 );
 
+const pushModalOpen = ref(false);
+const pushDialog = ref<HTMLElement | null>(null);
+// Abre uma vez por sessão, depois dos outros pop-ups; fecha sozinho quando a inscrição conclui.
+watchEffect(() => {
+    if (!showPushPrompt.value) {
+        pushModalOpen.value = false;
+        return;
+    }
+    if (!isAuthenticated.value || rouletteInviteOpen.value || showGrupoModal.value || sessionStorage.getItem("push_invite_seen")) return;
+    sessionStorage.setItem("push_invite_seen", "1");
+    pushModalOpen.value = true;
+    nextTick(() => pushDialog.value?.focus());
+});
+
 const handleEnablePush = async () => {
     await subscribePush(user.value?.email || null);
 };
 
 // Atualizar balance e verificar assinatura ao montar a página
 onMounted(async () => {
-    await refreshMemberExperience();
+    await Promise.all([refreshMemberExperience(), loadHomeConfig()]);
+    if (isAuthenticated.value) await intro.autoOpen();
     if (memberExperience.campaignEnabled && !sessionStorage.getItem("member_campaign_seen")) {
         showGrupoModal.value = true;
         sessionStorage.setItem("member_campaign_seen", "1");
@@ -499,6 +479,7 @@ onMounted(async () => {
     if (isAuthenticated.value) {
         fetchUserProfile();
     }
+    maybeInviteRoulette();
     refreshSubscriptionAccess();
     refreshPush(user.value?.email || null);
 
@@ -506,15 +487,19 @@ onMounted(async () => {
     window.addEventListener("pageshow", handleWindowFocus);
 });
 
-const banners = ref([
-    {
-        image: "/banners/ENTRE-NA-MINHA-COMUNIDADE-DUDA.png",
-        alt: "Entre na minha comunidade",
-        link: socialLinks.whatsapp,
-    },
-]);
-
-const currentBanner = ref(0);
+const { homeConfig, loadHomeConfig } = useHomeConfig();
+const intro = useIntroVideo();
+const banners = computed(() => homeConfig.value.banners.filter((b) => b.image));
+const heroVideoSrc = computed(() => {
+    const v = homeConfig.value.heroVideo?.trim();
+    return v && /^(https?:)?\//.test(v) ? v : "";
+});
+const bannerTrack = ref<HTMLElement | null>(null);
+const activeBanner = ref(0);
+const onBannerScroll = () => {
+    const el = bannerTrack.value;
+    if (el) activeBanner.value = Math.round(el.scrollLeft / el.clientWidth);
+};
 const showProfileDropdown = ref(false);
 
 const toggleProfileDropdown = () => {
@@ -537,12 +522,27 @@ const requireAuth = (event?: Event) => {
     return false;
 };
 
+const handleFreeGameClick = (event: Event) => {
+    if (!requireAuth(event)) return;
+    if (intro.required.value) {
+        event.preventDefault();
+        intro.show();
+    }
+};
+const walletOpen = ref(false);
+const openWallet = () => {
+    if (!isAuthenticated.value) return redirectToLogin();
+    walletOpen.value = true;
+};
+const withdraw = () => window.open(getBrand(brandSlug.value).withdrawUrl, "_blank", "noopener,noreferrer");
 const guardRoute = (event: Event) => {
     requireAuth(event);
 };
 
-const handleShortcutClick = (event: Event, href: string) => {
-    if (href !== "/torneios") requireAuth(event);
+const shortcutImage = (s: { image?: string; icon: string }) =>
+    s.image || (/^(https?:\/\/|\/)/.test(s.icon) ? s.icon : "");
+const handleShortcutClick = (event: Event, s: { href: string; external?: boolean }) => {
+    if (!s.external && !["/torneio", "/torneios", "/loja"].includes(s.href)) requireAuth(event);
 };
 
 const handleDepositClick = () => {
@@ -590,26 +590,18 @@ const handleLogout = async () => {
     await logout();
 };
 
-const nextBanner = () => {
-    currentBanner.value = (currentBanner.value + 1) % banners.value.length;
-};
-
-const prevBanner = () => {
-    currentBanner.value =
-        currentBanner.value === 0
-            ? banners.value.length - 1
-            : currentBanner.value - 1;
-};
-
+let bannerTimer: ReturnType<typeof setInterval> | undefined;
 // Auto-slide every 5 seconds
 onMounted(() => {
-    setInterval(() => {
-        nextBanner();
+    bannerTimer = setInterval(() => {
+        const el = bannerTrack.value;
+        if (el && banners.value.length > 1) el.scrollTo({ left: ((activeBanner.value + 1) % banners.value.length) * el.clientWidth, behavior: "smooth" });
     }, 5000);
     document.addEventListener("click", closeDropdown);
 });
 
 onUnmounted(() => {
+    clearInterval(bannerTimer);
     document.body.style.overflow = "";
     document.removeEventListener("click", closeDropdown);
     window.removeEventListener("focus", handleWindowFocus);
@@ -718,6 +710,13 @@ const claudeGames = ref([
     },
 ]);
 
+const xpPercent = computed(() => Math.min(100, (homeConfig.value.xpCurrent / Math.max(1, homeConfig.value.xpGoal)) * 100));
+const rouletteInviteOpen = ref(false);
+const maybeInviteRoulette = () => {
+    if (!isAuthenticated.value || showGrupoModal.value || intro.state.open || sessionStorage.getItem("roulette_invite_seen")) return;
+    sessionStorage.setItem("roulette_invite_seen", "1");
+    rouletteInviteOpen.value = true;
+};
 const showGrupoModal = ref(false);
 const campaignClose = ref<HTMLButtonElement | null>(null);
 const openGrupoModal = () => {
@@ -729,6 +728,7 @@ const closeGrupoModal = () => {
 
 watch(showGrupoModal, (open) => {
     document.body.style.overflow = open ? "hidden" : "";
+    if (!open) maybeInviteRoulette();
 });
 
 const handleLockedGameClick = (event: MouseEvent, gameId: string) => {
@@ -973,42 +973,56 @@ const highlights = ref([
 .member-shortcuts {
     max-width: 1380px;
     margin: 18px auto 0;
-    padding: 0 24px;
+    padding: 0 24px 6px;
     display: flex;
-    justify-content: center;
-    gap: clamp(16px, 4vw, 42px);
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 14px;
     overflow-x: auto;
 }
 
 .member-shortcut {
-    min-width: 74px;
+    width: 72px;
+    flex: 0 0 72px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    color: #d7d7dc;
+    gap: 7px;
+    color: #ddd;
     font-size: 12px;
-    font-weight: 700;
     text-decoration: none;
     text-align: center;
 }
 
-.member-shortcut span {
-    width: 58px;
-    height: 58px;
+.member-shortcut > span {
+    width: 60px;
+    height: 60px;
     display: grid;
     place-items: center;
-    border: 1px solid color-mix(in srgb, var(--tenant-primary, #fb65a6) 38%, #333);
+    border: 1px solid #ffffff1a;
     border-radius: 50%;
-    color: var(--tenant-primary, #fb65a6);
+    color: #fff;
     font-size: 25px;
-    background: linear-gradient(145deg, color-mix(in srgb, var(--tenant-primary, #fb65a6) 13%, #171717), #0c0c0e);
-    box-shadow: 0 10px 30px #0007;
-    transition: transform .2s, border-color .2s;
+    background: linear-gradient(145deg, #1d1d1d, #121212);
+    transition: color .2s, border-color .2s, box-shadow .2s;
 }
 
-.member-shortcut:hover span,
-.member-shortcut:focus-visible span { transform: translateY(-3px); border-color: var(--tenant-primary, #fb65a6); }
+.member-shortcut:hover > span,
+.member-shortcut:focus-visible > span {
+    color: var(--tenant-primary, #fb65a6);
+    border-color: var(--tenant-primary, #fb65a6);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--tenant-primary, #fb65a6) 18%, transparent);
+}
+
+.member-shortcut:focus-visible { outline: none; }
+.member-shortcut > span { overflow: hidden; }
+.member-shortcut > span img { width: 100%; height: 100%; object-fit: cover; }
+
+@media (max-width: 850px) {
+    .member-shortcuts { padding-inline: 16px; gap: 8px; }
+    .member-shortcut { width: 68px; flex-basis: 68px; }
+    .member-shortcut > span { width: 56px; height: 56px; }
+}
 
 /* Sidebar */
 .sidebar {
@@ -1134,98 +1148,6 @@ const highlights = ref([
 }
 
 /* Banner Carousel */
-.banner-carousel {
-    position: relative;
-    border-radius: 16px;
-    overflow: hidden;
-    margin-bottom: 32px;
-}
-
-.banner-slides {
-    position: relative;
-    width: 100%;
-}
-
-.banner-slide {
-    display: none;
-    width: 100%;
-    aspect-ratio: 3 / 1;
-    background: #03060b;
-}
-
-.banner-slide.active {
-    display: block;
-}
-
-.banner-slide img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.banner-link {
-    display: block;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
-}
-
-.carousel-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 48px;
-    height: 48px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 1px solid #444444;
-    border-radius: 50%;
-    color: #ffffff;
-    font-size: 24px;
-    cursor: pointer;
-    z-index: 3;
-    transition: all 0.2s ease;
-}
-
-.carousel-btn:hover {
-    background-color: rgba(251, 101, 166, 0.3);
-    border-color: #fb65a6;
-}
-
-.carousel-btn.prev {
-    left: 16px;
-}
-
-.carousel-btn.next {
-    right: 16px;
-}
-
-.carousel-dots {
-    position: absolute;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 8px;
-    z-index: 3;
-}
-
-.dot {
-    width: 10px;
-    height: 10px;
-    background-color: rgba(255, 255, 255, 0.4);
-    border-radius: 50%;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.dot.active {
-    width: 24px;
-    border-radius: 5px;
-    background-color: #ffffff;
-}
-
-/* Games Section */
 .games-section {
     margin-top: 24px;
 }
@@ -1819,4 +1741,119 @@ const highlights = ref([
 .push-prompt-icon .spin {
     animation: spin 1s linear infinite;
 }
+
+/* ===== Layout igual ao Clube da BB: coluna única, cartões e central de conexões ===== */
+.dashboard { --accent: var(--tenant-primary, #fb65a6); background: #090909; }
+.header { background: #090909f2; backdrop-filter: blur(14px); border-bottom: 1px solid #ffffff12; }
+.main-content { flex-direction: column; max-width: 1300px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 64px) 40px; gap: 36px; }
+.center-content { order: 1; }
+.sidebar { order: 2; width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sidebar > .btn-confirmar-compra,
+.sidebar > .sidebar-title,
+.sidebar > .news-card { grid-column: 1 / -1; }
+.sidebar .news-item, .sidebar .push-prompt { margin: 0; }
+.games-grid { grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); gap: 18px; }
+.game-card { border-radius: 16px; background: linear-gradient(180deg, #1a1a1a, #111); border-color: #ffffff14; box-shadow: 0 12px 28px #00000038; }
+.game-card:hover { transform: translateY(-5px); border-color: #ffffff14; box-shadow: 0 18px 34px #00000075; }
+.game-image { aspect-ratio: 4 / 5; }
+.game-image img { object-fit: cover; }
+.game-info { min-height: 72px; padding: 12px; }
+.game-name { font-size: 13px; text-transform: uppercase; }
+.permanent-lock { top: 11px; right: 11px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid #ffb000a8; background: rgba(11, 11, 11, .84); color: #ffd15a; }
+.claude-lock { border-color: #c084fca0; background: rgba(31, 15, 46, .78); color: #d8b4fe; }
+.connection-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+.connection-head small { color: var(--accent); font-weight: 900; letter-spacing: .12em; }
+.connection-head h2 { margin: 3px 0 0; font-size: 27px; text-transform: uppercase; }
+.connection-head p { max-width: 340px; margin: 0; color: #999; font-size: 13px; line-height: 1.45; text-align: right; }
+.links-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.link-card { position: relative; min-height: 112px; padding: 18px; gap: 13px; border-radius: 16px; border-color: #ffffff18; background: linear-gradient(135deg, #191319, #151515); transition: transform .18s ease, border-color .18s ease; }
+.link-card:hover, .link-card:focus-visible { transform: translateY(-3px); border-color: var(--accent); background: linear-gradient(135deg, #191319, #151515); outline: none; }
+.connection-icon { width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 14px; color: var(--accent); font-size: 24px; background: color-mix(in srgb, var(--accent) 14%, #171717); }
+.connection-text { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.connection-text em { color: var(--accent); font-size: 10px; font-style: normal; font-weight: 900; letter-spacing: .12em; }
+.connection-text strong { color: #fff; font-size: 16px; }
+.connection-text small { color: #999; margin-top: 3px; }
+.connection-arrow { color: #888; font-size: 20px; }
+.responsible { display: flex; gap: 14px; max-width: 1300px; margin: 0 auto 40px; padding: 20px; width: calc(100% - clamp(32px, 8vw, 128px)); border-radius: 14px; background: #111; border: 1px solid #ffffff12; color: #999; }
+.responsible svg { flex: none; font-size: 28px; color: var(--accent); }
+.responsible strong { color: #fff; }
+.responsible p { margin: 5px 0 0; }
+.bottom-nav { display: none; }
+@media (max-width: 850px) {
+    .main-content { padding: 16px 14px 24px; }
+    .connection-head { flex-direction: column; align-items: flex-start; }
+    .connection-head p { text-align: left; }
+    .links-grid, .sidebar { grid-template-columns: 1fr; }
+    .games-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .dashboard { padding-bottom: 70px; }
+    .responsible { width: calc(100% - 28px); }
+    .bottom-nav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; inset: auto 0 0; height: 70px; background: #141414; border-top: 1px solid #ffffff16; z-index: 90; }
+    .bottom-nav > * { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: #888; text-decoration: none; font-size: 10px; }
+    .bottom-nav svg { font-size: 21px; }
+    .bottom-nav .active { color: var(--accent); }
+}
+.home-extras { max-width: 1300px; margin: 18px auto 0; padding: 0 clamp(16px, 4vw, 64px); display: grid; gap: 18px; }
+.live { min-height: 74px; display: flex; align-items: center; gap: 13px; padding: 12px 18px; background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 18%, #171717), #171717 55%); border: 1px solid color-mix(in srgb, var(--accent) 65%, transparent); border-radius: 14px; color: #fff; text-decoration: none; }
+.live > i { width: 12px; height: 12px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+.live div { display: flex; flex: 1; flex-direction: column; }
+.live small { color: var(--accent); font-weight: 900; letter-spacing: .12em; }
+.live > span { color: #bbb; }
+.live b { display: flex; gap: 7px; align-items: center; padding: 11px 19px; border-radius: 10px; background: var(--accent); color: #16040f; }
+.live:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.xp { padding: 16px 18px; background: #171717; border: 1px solid #ffffff14; border-radius: 13px; }
+.xp > div:first-child { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.xp span { color: #aaa; }
+.track { height: 9px; background: #292929; border-radius: 10px; overflow: hidden; }
+.track i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, white)); }
+.community { display: flex; justify-content: center; gap: 35px; color: #aaa; }
+.community span { display: flex; align-items: center; gap: 7px; }
+.community svg, .community strong { color: #fff; }
+.community i { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+@media (max-width: 850px) {
+    .home-extras { padding-inline: 14px; }
+    .live { flex-wrap: wrap; }
+    .live div { min-width: 150px; }
+    .live > span { order: 3; margin-left: 25px; font-size: 12px; }
+    .live b { margin-left: auto; }
+    .community { gap: 14px; font-size: 12px; }
+}
+.push-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, .78); backdrop-filter: blur(7px); }
+.push-modal { position: relative; width: min(390px, 100%); padding: 32px 26px 24px; text-align: center; color: #fff; border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent); border-radius: 26px; background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 30%, #171217), #171217 67%); box-shadow: 0 24px 80px #000; }
+.push-modal:focus { outline: none; }
+.push-modal-icon { width: 68px; height: 68px; margin: 0 auto 14px; display: grid; place-items: center; border-radius: 50%; color: color-mix(in srgb, var(--accent) 60%, white); font-size: 34px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.push-modal h2 { margin: 0 0 8px; font-size: 25px; }
+.push-modal p { margin: 0 0 22px; color: #d0b4c5; font-size: 14px; line-height: 1.45; }
+.push-modal .push-modal-error { color: #ff8796; }
+.push-modal-cta, .push-modal-later { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; font: inherit; font-weight: 800; cursor: pointer; }
+.push-modal-cta { background: var(--accent); color: #16040f; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 30%, transparent); }
+.push-modal-cta:disabled { opacity: .7; }
+.push-modal-later { margin-top: 8px; background: transparent; color: #c9a4ba; }
+.push-close { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #ddd; background: #ffffff12; cursor: pointer; }
+.push-close:focus-visible, .push-modal-cta:focus-visible, .push-modal-later:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.banners { margin-bottom: 32px; }
+.banner-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 18px; border: 1px solid #ffffff14; scrollbar-width: none; }
+.banner-track::-webkit-scrollbar { display: none; }
+.banner-slide { flex: 0 0 100%; scroll-snap-align: start; display: block; }
+.banner-slide img { display: block; width: 100%; aspect-ratio: 3 / 1; object-fit: cover; }
+.banner-slide:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px; }
+.dots i { width: 7px; height: 7px; border-radius: 9px; background: #ffffff30; transition: width .2s, background .2s; }
+.dots i.on { width: 22px; background: var(--accent); }
+.hero-video { margin-bottom: 32px; border-radius: 18px; overflow: hidden; border: 1px solid #ffffff14; background: #000; }
+.hero-video video { display: block; width: 100%; max-height: 440px; }
+.wallet-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: end center; padding: 20px; background: rgba(0, 0, 0, .7); backdrop-filter: blur(7px); }
+.wallet-modal { position: relative; width: min(430px, 100%); padding: 28px 24px 22px; text-align: center; border: 1px solid #ffffff1c; border-radius: 24px; background: linear-gradient(145deg, #24101e, #151515 65%); box-shadow: 0 24px 60px #000; }
+.wallet-close { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #ddd; background: #ffffff12; cursor: pointer; }
+.wallet-icon { width: 56px; height: 56px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 16px; color: var(--accent); font-size: 28px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.wallet-label { margin: 0; color: #ff8ec8; font-size: 11px; font-weight: 900; letter-spacing: .14em; }
+.wallet-balance { display: block; margin: 6px 0 18px; font-size: 34px; }
+.wallet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wallet-deposit, .wallet-withdraw { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 12px; font: inherit; font-weight: 800; cursor: pointer; }
+.wallet-deposit { border: 0; background: var(--accent); color: #16040f; }
+.wallet-withdraw { border: 1px solid #ffffff2a; background: transparent; color: #fff; }
+.wallet-hint { display: flex; gap: 6px; justify-content: center; margin-top: 14px; color: #999; font-size: 12px; }
+.wallet-close:focus-visible, .wallet-deposit:focus-visible, .wallet-withdraw:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.bottom-nav button { border: 0; background: transparent; font: inherit; cursor: pointer; }
+@media (max-width: 850px) { .wallet-overlay { place-items: end center; } }
+@media (prefers-reduced-motion: reduce) { .dots i { transition: none; } .banner-track { scroll-behavior: auto; } }
 </style>

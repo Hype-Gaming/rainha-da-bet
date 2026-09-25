@@ -12,6 +12,12 @@
                     <span>Painel Admin — Rainha da Bet</span>
                 </div>
                 <div class="adm-topbar-right">
+                    <NuxtLink to="/admin/conteudo" class="adm-btn-ghost">
+                        <Icon name="ph:layout-bold" /> Conteúdo
+                    </NuxtLink>
+                    <NuxtLink to="/admin/torneios" class="adm-btn-ghost">
+                        <Icon name="ph:trophy-bold" /> Torneios
+                    </NuxtLink>
                     <NuxtLink to="/admin/experiencia" class="adm-btn-ghost">
                         <Icon name="ph:sparkle-bold" /> Experiência
                     </NuxtLink>

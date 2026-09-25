@@ -9,6 +9,8 @@ export interface BrandConfig {
   userCollection: string
   // Link de cadastro/afiliado da casa (usado no KYC e em "Criar conta")
   affiliateUrl: string
+  // Onde o usuário conclui o saque (abre em nova aba)
+  withdrawUrl: string
 }
 
 export const BRANDS: BrandConfig[] = [
@@ -18,7 +20,8 @@ export const BRANDS: BrandConfig[] = [
     baseDomain: 'bet.br',
     apiBaseUrl: 'https://routes-eb.grupoautoma.com',
     userCollection: 'users_eb',
-    affiliateUrl: 'https://esportiva.bet.br/?src=uvsmqnryjtwjvnlaakjynnnrf&utm_source=381780'
+    affiliateUrl: 'https://esportiva.bet.br/?src=uvsmqnryjtwjvnlaakjynnnrf&utm_source=381780',
+    withdrawUrl: 'https://esportiva.bet.br/'
   }
 ]
 
