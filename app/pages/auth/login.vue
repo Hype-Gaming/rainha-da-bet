@@ -131,6 +131,7 @@ import { BRANDS } from "../../../shared/brands";
 
 definePageMeta({
     layout: "default",
+    alias: ["/login"],
 });
 
 const brands = BRANDS;

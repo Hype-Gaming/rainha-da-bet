@@ -15,7 +15,7 @@ export const normalizeMemberExperience = (doc: Record<string, any> | null): Memb
   supportLink: text(doc?.supportLink, DEFAULT_MEMBER_EXPERIENCE.supportLink, 500),
   shortcuts: Array.isArray(doc?.shortcuts) ? doc.shortcuts.slice(0, 8).map((item: any, index: number) => ({
     label: text(item?.label, `Atalho ${index + 1}`, 40),
-    icon: text(item?.icon, 'ph:star-bold', 80),
+    icon: text(item?.icon, 'ph:star-bold', 300),
     href: text(item?.href, '#', 500)
   })) : DEFAULT_MEMBER_EXPERIENCE.shortcuts
 })

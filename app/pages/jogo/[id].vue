@@ -1524,6 +1524,15 @@ const loadGame = async () => {
     return
   }
 
+  // Vídeo de boas-vindas obrigatório antes do primeiro jogo grátis: volta para a home com o pop-up aberto.
+  const intro = useIntroVideo()
+  await intro.load()
+  if (intro.required.value) {
+    intro.show()
+    await navigateTo('/')
+    return
+  }
+
   // 1. Busca config de sinais da API (signalUrl, signalName, signalCollection)
   await fetchGameConfig(gameId.value)
 
