@@ -1,52 +1,20 @@
-import { DEFAULT_BRAND, getBrand } from '../../../shared/brands'
-
-const disabledCaptchaConfig = {
+/**
+ * Config público de auth da casa. A routes-eb expunha a config de captcha da
+ * marca (/api/auth-configs); o proxy velvet não tem equivalente, então o login
+ * segue sem captcha. Se a API passar a exigir um, o próprio /auth/login
+ * devolve o erro.
+ * ponytail: resposta fixa; volte a consultar o upstream se o velvet ganhar
+ * uma rota de auth-configs.
+ */
+const DISABLED = {
   enableCaptcha: false,
   enableCaptchaLogin: false,
   captchaServices: [] as string[],
   turnstileSiteKey: '',
-  captchaStyle: 'dark' as const
+  captchaStyle: 'dark' as const,
 }
 
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const requestedBrand = String(query.brandSlug || DEFAULT_BRAND.slug).trim()
-  const brand = getBrand(requestedBrand)
-  const baseDomain = String(query.baseDomain || brand.baseDomain).trim()
-
-  // Não permite consultar configurações de tenants fora da allowlist local.
-  if (brand.slug !== requestedBrand || baseDomain !== brand.baseDomain) {
-    return disabledCaptchaConfig
-  }
-
-  const config = useRuntimeConfig()
-  const routesApi = config.public.routesApiBase as string
-
-  try {
-    const data = await $fetch<any>(`${routesApi}/api/auth-configs`, {
-      headers: {
-        'X-Brand-Slug': brand.slug,
-        'X-Base-Domain': brand.baseDomain
-      }
-    })
-    const payload = data?.data ?? data
-    const featureSet = Array.isArray(payload)
-      ? payload.find((item: any) => item?.is_default) || payload[0] || {}
-      : payload && typeof payload === 'object' ? payload : {}
-
-    let auth = featureSet?.auth_configs ?? {}
-    if (typeof auth === 'string') {
-      try { auth = JSON.parse(auth) } catch { auth = {} }
-    }
-
-    return {
-      enableCaptcha: auth?.enable_captcha === true,
-      enableCaptchaLogin: auth?.enable_captcha_login === true,
-      captchaServices: Array.isArray(auth?.captcha_services) ? auth.captcha_services : [],
-      turnstileSiteKey: typeof auth?.turnstile_site_key === 'string' ? auth.turnstile_site_key : '',
-      captchaStyle: auth?.captcha_style === 'light' ? 'light' : 'dark'
-    }
-  } catch {
-    return disabledCaptchaConfig
-  }
+export default defineEventHandler((event) => {
+  setHeader(event, 'Cache-Control', 'public, max-age=300')
+  return DISABLED
 })
