@@ -1,142 +1,71 @@
 // Composable de Autenticação - Rainha da Bet
-// Integração com API Cactus
 //
-// Marca única (esportiva): o login autentica contra ela e a marca fica guardada
-// na sessão, usada nas chamadas seguintes (perfil, jogo, depósito, validação admin).
+// A sessão vive num cookie httpOnly assinado pelo servidor: o token do provedor
+// viaja dentro dele, mas o JS da página não consegue lê-lo (ao contrário do
+// localStorage, que qualquer XSS lê). A api-key do velvet é credencial da casa
+// e não sai do servidor. Toda chamada autenticada passa por /api/routes/*.
 
-import { BRANDS, DEFAULT_BRAND, getBrand } from '../../shared/brands'
+import { DEFAULT_BRAND, getBrand } from '../../shared/brands'
 
-// Tipos
 export interface Wallet {
-  id: number
-  balance: number
   credit: number
-  available_value: number
-  user_id: number
+  balance: number
   bonus: number
-  withdraw_enabled: number
+  locked: number
+  currency: string
 }
 
 export interface User {
-  id: number
+  id: string
   name: string
   email: string
-  phone: string
-  created_at: string
-  is_active: number
-  country: string
-  currency: string
-  first_name?: string
-  last_name?: string
+  phone?: string
   wallet?: Wallet
   kyc_validated_at?: string | null
 }
 
-export interface LoginResponse {
-  access_token: string
-  token_type: string
-  expires_in: number
-  user: User
-  cookie_key: number
-  cookies_path: string
-  brand_slug: string
-  base_domain: string
-  need_change_password: boolean
-}
-
-export interface UserProfileResponse extends User {
-  wallet: Wallet
-}
-
 export interface AuthState {
   user: User | null
-  token: string | null
-  cookieKey: number | null
   isAuthenticated: boolean
   balance: number
   needsKyc: boolean
   kycChecked: boolean
-  // Marca (brand) com que o usuário autenticou
   brandSlug: string
   baseDomain: string
-  apiBaseUrl: string
   userCollection: string
 }
 
-// Estado global reativo
 const authState = reactive<AuthState>({
   user: null,
-  token: null,
-  cookieKey: null,
   isAuthenticated: false,
   balance: 0,
   needsKyc: false,
   kycChecked: false,
   brandSlug: DEFAULT_BRAND.slug,
   baseDomain: DEFAULT_BRAND.baseDomain,
-  apiBaseUrl: DEFAULT_BRAND.apiBaseUrl,
   userCollection: DEFAULT_BRAND.userCollection
 })
+
+let sessionPromise: Promise<void> | null = null
 
 export const useAuth = () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Carregar estado do localStorage ao inicializar
-  const loadAuthState = () => {
-    if (import.meta.client) {
-      const savedAuth = localStorage.getItem('irmandade_auth')
-      if (savedAuth) {
-        try {
-          const parsed = JSON.parse(savedAuth)
-          authState.user = parsed.user
-          authState.token = parsed.token
-          authState.cookieKey = parsed.cookieKey
-          authState.isAuthenticated = !!parsed.token
-          authState.balance = parsed.balance || 0
-          // Restaura a marca da sessão (sessões antigas caem no padrão)
-          const brand = getBrand(parsed.brandSlug)
-          authState.brandSlug = brand.slug
-          authState.baseDomain = brand.baseDomain
-          authState.apiBaseUrl = brand.apiBaseUrl
-          authState.userCollection = brand.userCollection
-        } catch (e) {
-          console.error('Erro ao carregar estado de autenticação:', e)
-          clearAuth()
-        }
-      }
-    }
+  const applyBrand = (slug?: string | null) => {
+    const brand = getBrand(slug)
+    authState.brandSlug = brand.slug
+    authState.baseDomain = brand.baseDomain
+    authState.userCollection = brand.userCollection
   }
 
-  // Salvar estado no localStorage
-  const saveAuthState = () => {
-    if (import.meta.client) {
-      localStorage.setItem('irmandade_auth', JSON.stringify({
-        user: authState.user,
-        token: authState.token,
-        cookieKey: authState.cookieKey,
-        balance: authState.balance,
-        brandSlug: authState.brandSlug
-      }))
-    }
-  }
-
-  // Limpar autenticação
   const clearAuth = () => {
     authState.user = null
-    authState.token = null
-    authState.cookieKey = null
     authState.isAuthenticated = false
     authState.balance = 0
     authState.needsKyc = false
     authState.kycChecked = false
-    authState.brandSlug = DEFAULT_BRAND.slug
-    authState.baseDomain = DEFAULT_BRAND.baseDomain
-    authState.apiBaseUrl = DEFAULT_BRAND.apiBaseUrl
-    authState.userCollection = DEFAULT_BRAND.userCollection
-    if (import.meta.client) {
-      localStorage.removeItem('irmandade_auth')
-    }
+    applyBrand(DEFAULT_BRAND.slug)
   }
 
   const requireKyc = () => {
@@ -144,50 +73,52 @@ export const useAuth = () => {
     authState.kycChecked = true
   }
 
-  // Buscar perfil do usuário (inclui wallet/balance)
+  /**
+   * Lê a sessão do cookie. Substitui o antigo loadAuthState() do localStorage —
+   * quem decide se há sessão é o servidor, não o cliente.
+   */
+  const refreshSession = async (): Promise<void> => {
+    if (sessionPromise) return sessionPromise
+    sessionPromise = (async () => {
+      try {
+        const headers = import.meta.server ? useRequestHeaders(['cookie']) : undefined
+        const res = await $fetch<{
+          authenticated: boolean
+          user: User | null
+          brandSlug: string | null
+        }>('/api/session', { headers, credentials: 'include' })
+
+        authState.isAuthenticated = !!res.authenticated
+        authState.user = res.user
+        applyBrand(res.brandSlug)
+      } catch {
+        clearAuth()
+      }
+    })()
+    try {
+      await sessionPromise
+    } finally {
+      sessionPromise = null
+    }
+  }
+
+  // Perfil + saldo pela nossa rota (o servidor fala com o velvet).
   const fetchUserProfile = async (): Promise<void> => {
-    if (!authState.token || !authState.cookieKey) return
+    if (!authState.isAuthenticated) return
 
     try {
-      const response = await $fetch<UserProfileResponse>(`${authState.apiBaseUrl}/api/auth/user`, {
-        method: 'GET',
-        params: {
-          collection: authState.userCollection
-        },
-        headers: {
-          'Authorization': `Bearer ${authState.token}`,
-          'X-Brand-Slug': authState.brandSlug,
-          'X-Base-Domain': authState.baseDomain,
-          'X-Cactus-Cookie-Key': authState.cookieKey.toString()
-        }
-      })
+      const response = await $fetch<User & { wallet: Wallet; kyc_known?: boolean }>(
+        '/api/routes/user',
+        { credentials: 'include' }
+      )
 
-      // Atualizar dados do usuário com informações completas
-      authState.user = {
-        ...authState.user,
-        id: response.id,
-        name: response.name,
-        email: response.email,
-        phone: response.phone,
-        first_name: response.first_name,
-        last_name: response.last_name,
-        wallet: response.wallet,
-        kyc_validated_at: (response as any).kyc_validated_at || null
-      } as User
+      authState.user = { ...authState.user, ...response } as User
+      authState.balance = (response.wallet?.credit || 0) / 100
 
-      // Atualizar balance usando credit e convertendo (credit / 100)
-      if (response.wallet) {
-        const credit = response.wallet.credit || 0
-        authState.balance = credit / 100
-      }
-
-      // Verificar se precisa KYC - o campo está dentro de userInfo ou user_info
-      const userInfo = (response as any).userInfo || (response as any).user_info
-      const kycValidatedAt = userInfo?.kyc_validated_at
-      authState.needsKyc = !kycValidatedAt || kycValidatedAt === '' || kycValidatedAt === null
+      // Só bloqueia por KYC se o upstream realmente informar o campo. O velvet
+      // não expõe KYC hoje: sem isto, needsKyc ficaria true para todo mundo.
+      authState.needsKyc = response.kyc_known === true && !response.kyc_validated_at
       authState.kycChecked = true
-
-      saveAuthState()
     } catch (err: any) {
       if (err?.statusCode === 401 || err?.response?.status === 401) {
         clearAuth()
@@ -203,85 +134,43 @@ export const useAuth = () => {
     email?: string
     cpf?: string
     password: string
-  }, captchaToken = ''): Promise<{ success: boolean; message?: string }> => {
+  }): Promise<{ success: boolean; message?: string }> => {
     loading.value = true
     error.value = null
 
-    let lastError: any = null
+    // A API usa o campo "email" como login único: aceita e-mail OU CPF.
+    const identifier = credentials.email
+      || credentials.cpf?.replace(/\D/g, '')
+      || ''
 
     try {
-      // Autentica contra a(s) marca(s) configurada(s) — hoje só esportiva.
-      for (const brand of BRANDS) {
-        const body: Record<string, any> = {
+      const res = await $fetch<{ user: User; brandSlug: string }>('/api/session/login', {
+        method: 'POST',
+        credentials: 'include',
+        body: {
+          email: identifier,
           password: credentials.password,
-          brand_slug: brand.slug,
-          base_domain: brand.baseDomain,
-          app_source: 'web',
-          save_cookies: true,
-          captchaToken
+          brand_slug: DEFAULT_BRAND.slug,
+          base_domain: DEFAULT_BRAND.baseDomain
         }
+      })
 
-        // A API Cactus usa o campo "email" como login único: aceita e-mail OU CPF.
-        if (credentials.email) {
-          body.email = credentials.email
-        } else if (credentials.cpf) {
-          // CPF entra no mesmo campo "email", só os dígitos.
-          body.email = credentials.cpf.replace(/\D/g, '')
-        }
+      authState.user = res.user
+      authState.isAuthenticated = true
+      applyBrand(res.brandSlug)
 
-        try {
-          const response = await $fetch<LoginResponse>('/api/session/login', {
-            method: 'POST',
-            body
-          })
-
-          // Sucesso: fixa a marca que autenticou nesta sessão
-          authState.brandSlug = brand.slug
-          authState.baseDomain = brand.baseDomain
-          authState.apiBaseUrl = brand.apiBaseUrl
-          authState.userCollection = brand.userCollection
-
-          authState.user = response.user
-          authState.token = response.access_token
-          authState.cookieKey = response.cookie_key
-          authState.isAuthenticated = true
-
-          saveAuthState()
-
-          // Buscar perfil completo do usuário (incluindo wallet/balance)
-          await fetchUserProfile()
-
-          if (!authState.isAuthenticated) {
-            return { success: false, message: 'Sua sessão expirou. Faça login novamente.' }
-          }
-
-          return { success: true }
-        } catch (err: any) {
-          lastError = err
-          // Credenciais não encontradas nessa marca: tenta a próxima.
-        }
-      }
-
-      // Nenhuma marca autenticou
-      console.error('Erro no login:', lastError)
-
+      await fetchUserProfile()
+      return { success: true }
+    } catch (err: any) {
+      const status = err?.statusCode || err?.response?.status
       let message = 'Erro ao fazer login. Tente novamente.'
-
-      const detail = lastError?.data?.detail
-      const detailText = `${detail?.x || ''} ${detail?.error || ''}`.toLowerCase()
-
-      if (detail?.reason === 'wrong_credentials' || /authenticate|unable|password/.test(detailText)) {
+      if (err?.data?.invalidCredentials || status === 401) {
         message = 'E-mail/CPF ou senha incorretos.'
-      } else if (detail?.reason === 'user_not_found') {
-        message = 'Usuário não encontrado.'
-      } else if (lastError?.statusCode === 429 || lastError?.response?.status === 429) {
+      } else if (status === 429) {
         message = 'Muitas tentativas. Aguarde um momento.'
-      } else if (lastError?.statusCode === 401) {
-        message = 'Credenciais inválidas.'
-      } else if ((lastError?.statusCode || lastError?.response?.status) >= 500) {
+      } else if (status === 502 || status >= 500) {
         message = 'O serviço de autenticação está indisponível. Aguarde dois minutos e tente novamente.'
       }
-
       error.value = message
       return { success: false, message }
     } finally {
@@ -289,26 +178,10 @@ export const useAuth = () => {
     }
   }
 
-  // Logout
   const logout = async () => {
     loading.value = true
-
     try {
-      if (authState.token && authState.cookieKey) {
-        await $fetch(`${authState.apiBaseUrl}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authState.token}`,
-            'X-Brand-Slug': authState.brandSlug,
-            'X-Base-Domain': authState.baseDomain,
-            'X-Cactus-Cookie-Key': authState.cookieKey.toString()
-          },
-          body: {
-            cookie_key: authState.cookieKey.toString()
-          }
-        })
-      }
+      await $fetch('/api/session', { method: 'DELETE', credentials: 'include' })
     } catch (err) {
       console.error('Erro no logout:', err)
     } finally {
@@ -318,59 +191,27 @@ export const useAuth = () => {
     }
   }
 
-  // Verificar se usuário está autenticado
-  const checkAuth = () => {
-    loadAuthState()
-    return authState.isAuthenticated
-  }
-
-  // Obter headers de autenticação para requisições
-  const getAuthHeaders = () => {
-    return {
-      'Authorization': `Bearer ${authState.token}`,
-      'X-Brand-Slug': authState.brandSlug,
-      'X-Base-Domain': authState.baseDomain,
-      'X-Cactus-Cookie-Key': authState.cookieKey?.toString() || ''
-    }
-  }
-
-  // Inicializar estado
-  if (import.meta.client) {
-    loadAuthState()
-  }
-
-  // Formatar balance para exibição
-  const formattedBalance = computed(() => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(authState.balance)
-  })
+  const formattedBalance = computed(() =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(authState.balance)
+  )
 
   return {
-    // Estado
     user: computed(() => authState.user),
-    token: computed(() => authState.token),
-    cookieKey: computed(() => authState.cookieKey),
     isAuthenticated: computed(() => authState.isAuthenticated),
     balance: computed(() => authState.balance),
     needsKyc: computed(() => authState.needsKyc),
     kycChecked: computed(() => authState.kycChecked),
-    // Marca (brand) ativa do usuário logado
     brandSlug: computed(() => authState.brandSlug),
     baseDomain: computed(() => authState.baseDomain),
-    apiBaseUrl: computed(() => authState.apiBaseUrl),
     brandName: computed(() => getBrand(authState.brandSlug).name),
     affiliateUrl: computed(() => getBrand(authState.brandSlug).affiliateUrl),
     formattedBalance,
     loading: readonly(loading),
     error: readonly(error),
-    
-    // Métodos
+
     login,
     logout,
-    checkAuth,
-    getAuthHeaders,
+    refreshSession,
     clearAuth,
     requireKyc,
     fetchUserProfile

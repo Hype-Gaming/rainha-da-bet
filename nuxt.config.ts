@@ -27,8 +27,11 @@ export default defineNuxtConfig({
   ssr: false,
 
   runtimeConfig: {
+    sessionSecret: process.env.SESSION_SECRET || process.env.NUXT_SESSION_SECRET || '',
+    // API key do tenant no proxy velvet. Server-side only: nunca vai ao cliente.
+    velvetApiKey: process.env.VELVET_API_KEY || '',
     public: {
-      routesApiBase: process.env.NUXT_PUBLIC_ROUTES_API_BASE || 'https://routes-eb.grupoautoma.com',
+      routesApiBase: process.env.NUXT_PUBLIC_ROUTES_API_BASE || 'http://localhost:47922',
       turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'
     }
   },

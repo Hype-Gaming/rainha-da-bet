@@ -19,8 +19,12 @@
 </template>
 
 <script setup lang="ts">
-const { needsKyc, kycChecked, isAuthenticated, logout, fetchUserProfile } =
+const { needsKyc, kycChecked, isAuthenticated, logout, fetchUserProfile, refreshSession } =
     useAuth();
+
+// A sessao vem do cookie, nao do localStorage: precisa ser lida antes dos
+// filhos montarem, senao isAuthenticated ainda e false quando eles checam.
+await refreshSession();
 const { send: sendHeartbeat } = useHeartbeat();
 const { isBlocked } = useAccountBlocked();
 const route = useRoute();

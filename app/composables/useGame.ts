@@ -16,7 +16,7 @@ export interface GameSignalConfig {
 }
 
 export const useGame = () => {
-  const { token, cookieKey, clearAuth, brandSlug, user, requireKyc } = useAuth()
+  const { isAuthenticated, clearAuth, requireKyc } = useAuth()
   
   const gameUrl = ref<string>('')
   const isLoading = ref(false)
@@ -78,7 +78,7 @@ export const useGame = () => {
 
 
   const startGame = async (gameId: string, platform: 'WEB' | 'MOBILE' = 'WEB'): Promise<string | null> => {
-    if (!token.value) {
+    if (!isAuthenticated.value) {
       error.value = 'Usuário não autenticado'
       return null
     }
@@ -106,20 +106,12 @@ export const useGame = () => {
           }
         }
         message?: string
-      }>('/api/start-game', {
+      }>('/api/routes/start-game', {
         method: 'GET',
-        params: {
-          slug,
-          platform,
-          use_demo: 0
-        },
-        headers: {
-          'Authorization': `Bearer ${token.value}`,
-          'X-Brand-Slug': brandSlug.value,
-          'X-Cactus-Cookie-Key': String(cookieKey.value || ''),
-          'X-Player-Email': user.value?.email || '',
-          'X-Player-Id': String(user.value?.id || '')
-        }
+        credentials: 'include',
+        // O velvet nao aceita platform/use_demo no launch; a identidade do
+        // jogador vem da sessao, nao de headers do browser.
+        params: { slug }
       })
 
       if (response.success && response.game_url) {

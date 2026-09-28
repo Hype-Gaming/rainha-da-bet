@@ -335,7 +335,6 @@ const handleLogin = async () => {
             isEmail
                 ? { email: identifier, password: form.password }
                 : { cpf: identifier, password: form.password },
-            captchaToken.value,
         );
 
         if (result.success) {
