@@ -34,7 +34,7 @@ const depositState = reactive<DepositState>({
 })
 
 export const useDeposit = () => {
-  const { token, cookieKey, fetchUserProfile, apiBaseUrl, brandSlug, baseDomain } = useAuth()
+  const { isAuthenticated, fetchUserProfile } = useAuth()
 
   // Abrir modal
   const openModal = () => {
@@ -56,7 +56,7 @@ export const useDeposit = () => {
 
   // Criar depósito
   const createDeposit = async (amount: number): Promise<{ success: boolean; message?: string }> => {
-    if (!token.value || !cookieKey.value) {
+    if (!isAuthenticated.value) {
       return { success: false, message: 'Usuário não autenticado' }
     }
 
@@ -68,17 +68,13 @@ export const useDeposit = () => {
     depositState.error = null
 
     try {
-      const response = await $fetch<DepositResponse>(`${apiBaseUrl.value}/api/deposit`, {
+      // Rota nossa: o servidor injeta o token e a api-key do velvet.
+      const response = await $fetch<DepositResponse>('/api/routes/deposit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token.value}`,
-          'X-Brand-Slug': brandSlug.value,
-          'X-Base-Domain': baseDomain.value,
-          'X-Cactus-Cookie-Key': cookieKey.value.toString()
-        },
+        credentials: 'include',
         body: {
-          amount: String(amount)
+          // O velvet exige decimal com no maximo 2 casas.
+          amount: amount.toFixed(2)
         }
       })
 
