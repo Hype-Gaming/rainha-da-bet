@@ -634,13 +634,6 @@ const primeGames = ref([
         image: "/games/football-studio.png",
         href: "/jogo/football-studio",
     },
-    {
-        id: "futebol-brasileiro",
-        name: "FUTEBOL BRASILEIRO SPORTS CLUB",
-        provider: "GoodGame",
-        image: "/games/football-studio-br.png",
-        href: "/jogo/futebol-brasileiro",
-    },
 ]);
 
 const premiumGames = ref([
