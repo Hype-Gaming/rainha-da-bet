@@ -11,7 +11,7 @@
                 <Icon name="ph:info-bold" />
                 <span
                     >Use suas credenciais da
-                    <strong>esportiva.bet.br</strong></span
+                    <strong>casa de apostas</strong></span
                 >
             </div>
 
