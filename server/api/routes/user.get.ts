@@ -30,6 +30,10 @@ export default defineEventHandler(async (event) => {
     ?? balances.balances?.[0]
 
   // O Hydra devolve decimal em string ("10.50"); o front divide por 100.
+  // ponytail: float puro — valores com sub-centavo ("1.005") arredondam pra
+  // baixo, porque 1.005*100 da 100.49999999999999. Erra no maximo 1 centavo e
+  // so na exibicao do saldo. Se precisar de exatidao, parseie a string decimal
+  // em vez de multiplicar.
   const toCents = (value: string | undefined) =>
     value === undefined ? 0 : Math.round(Number(value) * 100)
 
