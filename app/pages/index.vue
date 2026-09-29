@@ -190,10 +190,10 @@
                         </h2>
                     </div>
                     <div class="games-grid">
-                        <a
+                        <NuxtLink
                             v-for="(game, index) in primeGames"
                             :key="index"
-                            :href="game.href"
+                            :to="game.href"
                             class="game-card"
                             @click="guardRoute"
                         >
@@ -217,7 +217,7 @@
                                     {{ game.provider }}
                                 </span>
                             </div>
-                        </a>
+                        </NuxtLink>
                     </div>
                 </div>
 
@@ -658,11 +658,6 @@ const premiumGames = ref([
         id: "football-studio-ao-vivo",
         name: "FUTEBOL STUDIO AO VIVO",
         image: "/games/football-studio-br.png",
-    },
-    {
-        id: "football-studio",
-        name: "FOOTBALL STUDIO",
-        image: "/games/football-studio.png",
     },
     {
         id: "baccarat",

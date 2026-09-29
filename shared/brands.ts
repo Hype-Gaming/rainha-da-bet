@@ -18,7 +18,7 @@ export const BRANDS: BrandConfig[] = [
     baseDomain: 'bet.br',
     apiBaseUrl: 'https://routes-eb.grupoautoma.com',
     userCollection: 'users_eb',
-    affiliateUrl: 'https://esportiva.bet.br/?src=uvsmqnryjtwjvnlaakjynnnrf&utm_source=381780'
+    affiliateUrl: 'https://go.velvetspin.io/c/zd1ikf'
   }
 ]
 

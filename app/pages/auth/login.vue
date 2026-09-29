@@ -96,7 +96,7 @@
                         class="create-link"
                     >
                         <Icon name="ph:plus-circle-bold" />
-                        Criar conta na {{ brand.name }}
+                        Criar conta na plataforma
                     </a>
                 </div>
             </div>
