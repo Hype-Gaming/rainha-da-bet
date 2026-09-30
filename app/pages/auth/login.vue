@@ -1,1 +1,730 @@
-   
+<template>
+    <div class="login-page">
+        <div class="login-container">
+            <div class="login-header">
+                <img src="/logo.png" alt="Rainha da Bet" class="logo" />
+                <p class="subtitle">Acesse sua conta</p>
+            </div>
+
+            <!-- Informativo -->
+            <div class="info-banner">
+                <Icon name="ph:info-bold" />
+                <span
+                    >Use suas credenciais da
+                    <strong>casa de apostas</strong></span
+                >
+            </div>
+
+            <form @submit.prevent="handleLogin" class="login-form">
+                <!-- Campo E-mail ou CPF -->
+                <div class="form-group">
+                    <label for="identifier">
+                        <Icon name="ph:user-bold" class="input-icon" />
+                        E-mail ou CPF
+                    </label>
+                    <input
+                        id="identifier"
+                        v-model="form.identifier"
+                        type="text"
+                        inputmode="text"
+                        autocomplete="username"
+                        placeholder="seu@email.com ou CPF"
+                        required
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <Icon name="ph:lock-bold" class="input-icon" />
+                        Senha
+                    </label>
+                    <div class="password-wrapper">
+                        <input
+                            id="password"
+                            v-model="form.password"
+                            :type="showPassword ? 'text' : 'password'"
+                            placeholder="Sua senha"
+                            required
+                        />
+                        <button
+                            type="button"
+                            class="toggle-password"
+                            @click="showPassword = !showPassword"
+                        >
+                            <Icon
+                                :name="
+                                    showPassword
+                                        ? 'ph:eye-slash-bold'
+                                        : 'ph:eye-bold'
+                                "
+                            />
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mensagem de erro -->
+                <div v-if="errorMessage" class="error-message">
+                    <Icon name="ph:warning-circle-bold" />
+                    {{ errorMessage }}
+                </div>
+
+                <div
+                    v-show="captchaRequired"
+                    ref="turnstileEl"
+                    class="captcha-box"
+                />
+
+                <button
+                    type="submit"
+                    class="btn-login"
+                    :disabled="loading || (captchaRequired && !captchaToken)"
+                >
+                    <Icon v-if="loading" name="ph:spinner" class="spinner" />
+                    <span v-if="loading">Entrando...</span>
+                    <span v-else>Entrar</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>Não possui uma conta?</p>
+                <div class="create-links">
+                    <a
+                        v-for="brand in brands"
+                        :key="brand.slug"
+                        :href="brand.affiliateUrl"
+                        target="_blank"
+                        class="create-link"
+                    >
+                        <Icon name="ph:plus-circle-bold" />
+                        Criar conta na plataforma
+                    </a>
+                </div>
+            </div>
+
+            <!-- Ativar notificações push -->
+            <button
+                v-if="showPushPrompt"
+                type="button"
+                class="push-prompt"
+                :disabled="pushLoading"
+                @click="handleEnablePush"
+            >
+                <Icon
+                    :name="
+                        pushLoading ? 'ph:spinner' : 'ph:bell-ringing-bold'
+                    "
+                    :class="{ spinner: pushLoading }"
+                />
+                <span class="push-prompt-label">
+                    <span>Ativar notificações de sinais</span>
+                    <span v-if="pushError" class="push-prompt-error">{{
+                        pushError
+                    }}</span>
+                </span>
+            </button>
+        </div>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { BRANDS } from "../../../shared/brands";
+
+definePageMeta({
+    layout: "default",
+});
+
+const brands = BRANDS;
+const route = useRoute();
+
+const { login, loading, error, isAuthenticated } = useAuth();
+
+const errorMessage = ref("");
+const showPassword = ref(false);
+
+const form = reactive({
+    identifier: "",
+    password: "",
+});
+
+// Captcha (Cloudflare Turnstile). A exigência e o tema vêm da configuração
+// pública da casa; o sitekey do runtime é usado como fallback.
+const brandSlug = computed(() => brands[0]?.slug || "esportiva");
+const baseDomain = computed(() => brands[0]?.baseDomain || "bet.br");
+const captchaRequired = ref(false);
+const turnstileSiteKey = ref("");
+const captchaStyle = ref<"dark" | "light">("dark");
+const captchaToken = ref("");
+const turnstileEl = ref<HTMLElement | null>(null);
+let turnstileWidgetId: string | null = null;
+
+function loadTurnstileScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if ((window as any).turnstile) return resolve();
+        const existing = document.querySelector(
+            "script[data-turnstile]",
+        ) as HTMLScriptElement | null;
+        if (existing) {
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener(
+                "error",
+                () => reject(new Error("turnstile load error")),
+                { once: true },
+            );
+            return;
+        }
+        const script = document.createElement("script");
+        script.src =
+            "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.setAttribute("data-turnstile", "");
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("turnstile load error"));
+        document.head.appendChild(script);
+    });
+}
+
+async function renderTurnstile() {
+    if (!turnstileSiteKey.value || !turnstileEl.value) return;
+    try {
+        await loadTurnstileScript();
+        const turnstile = (window as any).turnstile;
+        if (!turnstile) return;
+        if (turnstileWidgetId !== null) {
+            try {
+                turnstile.remove(turnstileWidgetId);
+            } catch { /* noop */ }
+            turnstileWidgetId = null;
+        }
+        turnstileWidgetId = turnstile.render(turnstileEl.value, {
+            sitekey: turnstileSiteKey.value,
+            theme: captchaStyle.value,
+            callback: (token: string) => (captchaToken.value = token),
+            "expired-callback": () => (captchaToken.value = ""),
+            "error-callback": () => (captchaToken.value = ""),
+        });
+    } catch {
+        // A API de login continua responsável por rejeitar uma tentativa sem token.
+    }
+}
+
+function resetTurnstile() {
+    captchaToken.value = "";
+    const turnstile = (window as any).turnstile;
+    if (turnstile && turnstileWidgetId !== null) {
+        try {
+            turnstile.reset(turnstileWidgetId);
+        } catch { /* noop */ }
+    }
+}
+
+let authConfigRequest = 0;
+
+async function loadAuthConfig() {
+    const request = ++authConfigRequest;
+    try {
+        const cfg = await $fetch<{
+            enableCaptcha: boolean;
+            enableCaptchaLogin: boolean;
+            captchaServices: string[];
+            turnstileSiteKey: string;
+            captchaStyle: "dark" | "light";
+        }>("/api/session/auth-config", {
+            query: { brandSlug: brandSlug.value, baseDomain: baseDomain.value },
+        });
+        if (request !== authConfigRequest) return;
+
+        const runtimeConfig = useRuntimeConfig();
+        const siteKey =
+            cfg.turnstileSiteKey ||
+            (runtimeConfig.public.turnstileSiteKey as string) ||
+            "";
+        const services = cfg.captchaServices?.length
+            ? cfg.captchaServices
+            : ["turnstile"];
+        const wantsTurnstile =
+            cfg.enableCaptcha &&
+            cfg.enableCaptchaLogin &&
+            services.includes("turnstile") &&
+            !!siteKey;
+
+        if (wantsTurnstile) {
+            turnstileSiteKey.value = siteKey;
+            captchaStyle.value = cfg.captchaStyle === "light" ? "light" : "dark";
+            captchaRequired.value = true;
+            await nextTick();
+            if (request === authConfigRequest) await renderTurnstile();
+        } else {
+            captchaRequired.value = false;
+            captchaToken.value = "";
+            const turnstile = (window as any).turnstile;
+            if (turnstileWidgetId !== null && turnstile) {
+                try {
+                    turnstile.remove(turnstileWidgetId);
+                } catch { /* noop */ }
+                turnstileWidgetId = null;
+            }
+        }
+    } catch {
+        captchaRequired.value = false;
+        captchaToken.value = "";
+    }
+}
+
+// Notificações push (web push)
+const {
+    permission: pushPermission,
+    isSubscribed: pushSubscribed,
+    checked: pushChecked,
+    loading: pushLoading,
+    error: pushError,
+    refresh: refreshPush,
+    subscribe: subscribePush,
+} = usePush();
+
+const showPushPrompt = computed(
+    () =>
+        pushChecked.value &&
+        (pushPermission.value === "default" ||
+            pushPermission.value === "granted") &&
+        !pushSubscribed.value,
+);
+
+const handleEnablePush = async () => {
+    await subscribePush(null);
+};
+
+// Redirecionar se já estiver autenticado
+onMounted(() => {
+    watch([brandSlug, baseDomain], loadAuthConfig, { immediate: true });
+
+    if (isAuthenticated.value) {
+        navigateTo("/");
+        return;
+    }
+
+    const reasonMessages: Record<string, string> = {
+        session_expired: "Sua sessão expirou. Faça login novamente.",
+        wrong_tenant: "Esta sessão pertence a outro acesso. Faça login novamente.",
+        blocked: "Sua conta está bloqueada. Entre em contato com o suporte.",
+    };
+    const reason = String(route.query.reason || "");
+    if (reasonMessages[reason]) errorMessage.value = reasonMessages[reason];
+    refreshPush(null);
+});
+
+const handleLogin = async () => {
+    errorMessage.value = "";
+
+    const identifier = form.identifier.trim();
+    if (!identifier) {
+        errorMessage.value = "Digite seu e-mail ou CPF";
+        return;
+    }
+
+    if (captchaRequired.value && !captchaToken.value) {
+        errorMessage.value = "Complete a verificação de segurança abaixo.";
+        return;
+    }
+
+    // Detecta automaticamente: com "@" é e-mail; senão, trata como CPF.
+    const isEmail = identifier.includes("@");
+
+    try {
+        const result = await login(
+            isEmail
+                ? { email: identifier, password: form.password }
+                : { cpf: identifier, password: form.password },
+        );
+
+        if (result.success) {
+            navigateTo("/");
+        } else {
+            errorMessage.value = result.message || "Erro ao fazer login";
+        }
+    } finally {
+        if (captchaRequired.value) resetTurnstile();
+    }
+};
+</script>
+
+<style scoped>
+.login-page {
+    min-height: 100vh;
+    background-color: #000000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 40px;
+    background-color: #111111;
+    border-radius: 16px;
+    border: 1px solid #222222;
+    box-shadow: 0 20px 60px rgba(251, 101, 166, 0.1);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    max-width: 220px;
+    height: auto;
+    margin: 0 0 16px 0;
+}
+
+.subtitle {
+    color: #888888;
+    font-size: 16px;
+    margin: 0;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.captcha-box {
+    min-height: 65px;
+    display: flex;
+    justify-content: center;
+}
+
+.login-type-toggle {
+    display: flex;
+    gap: 8px;
+    background: #1a1a1a;
+    border-radius: 10px;
+    padding: 4px;
+}
+
+.toggle-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #888;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+    color: #fff;
+}
+
+.toggle-btn.active {
+    background: linear-gradient(135deg, #fb65a6 0%, #fb65a6 100%);
+    color: #000;
+}
+
+.toggle-btn :deep(svg) {
+    font-size: 16px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    color: #cccccc;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-icon {
+    font-size: 16px;
+    color: #fb65a6;
+}
+
+.form-group input[type="email"],
+.form-group input[type="password"],
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 14px 16px;
+    background-color: #1a1a1a;
+    border: 1px solid #333333;
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    outline: none;
+}
+
+.form-group input[type="email"]:focus,
+.form-group input[type="password"]:focus,
+.form-group input[type="text"]:focus {
+    border-color: #fb65a6;
+    box-shadow: 0 0 0 3px rgba(251, 101, 166, 0.15);
+}
+
+.form-group input::placeholder {
+    color: #555555;
+}
+
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 48px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.toggle-password:hover {
+    color: #fb65a6;
+}
+
+.toggle-password :deep(svg) {
+    font-size: 20px;
+}
+
+.error-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 14px;
+}
+
+.error-message :deep(svg) {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.link {
+    color: #fb65a6;
+    text-decoration: none;
+    font-size: 14px;
+    transition: opacity 0.2s ease;
+}
+
+.link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+.btn-login {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #fb65a6 0%, #fb65a6 100%);
+    border: none;
+    border-radius: 10px;
+    color: #000000;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.btn-login:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(251, 101, 166, 0.35);
+}
+
+.btn-login:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-login:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.login-footer {
+    text-align: center;
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid #222222;
+}
+
+.login-footer p {
+    color: #888888;
+    font-size: 14px;
+    margin: 0 0 14px 0;
+}
+
+.create-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.create-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(251, 101, 166, 0.08);
+    border: 1px solid rgba(251, 101, 166, 0.35);
+    border-radius: 10px;
+    color: #fb65a6;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.create-link:hover {
+    background: rgba(251, 101, 166, 0.15);
+    border-color: #fb65a6;
+}
+
+.create-link :deep(svg) {
+    font-size: 18px;
+}
+
+.info-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(251, 101, 166, 0.1);
+    border: 1px solid rgba(251, 101, 166, 0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.info-banner :deep(svg) {
+    color: #fb65a6;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.info-banner span {
+    color: #aaa;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.info-banner strong {
+    color: #fb65a6;
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+    .login-container {
+        padding: 28px 20px;
+    }
+
+    .logo {
+        font-size: 24px;
+    }
+
+    .form-group input[type="email"],
+    .form-group input[type="password"] {
+        padding: 12px 14px;
+        font-size: 14px;
+    }
+
+    .btn-login {
+        padding: 14px;
+        font-size: 15px;
+    }
+
+    .form-options {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+}
+
+.push-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(251, 101, 166, 0.08);
+    border: 1px solid rgba(251, 101, 166, 0.35);
+    color: #fb65a6;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.push-prompt:hover:not(:disabled) {
+    background: rgba(251, 101, 166, 0.14);
+    border-color: #fb65a6;
+}
+
+.push-prompt:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.push-prompt-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.push-prompt-label .push-prompt-error {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #ff5d6c;
+}
+</style>
