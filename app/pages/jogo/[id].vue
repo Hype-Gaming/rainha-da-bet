@@ -45,14 +45,30 @@
           </div>
 
           <!-- Possível Entrada -->
-          <div v-if="gameMode === 'sinais'" class="possivel-entrada-section" :style="{ border: `2px solid ${valuePrimaryColor}`, boxShadow: `0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px ${valuePrimaryColor}40` }">
+          <div v-if="gameMode === 'sinais' && signalAccessState === 'denied'" class="signal-locked">
+            <div class="signal-preview" aria-hidden="true">
+              <span>Possível entrada</span>
+              <strong>••••••••</strong>
+              <span>•••••• ••••••</span>
+            </div>
+            <div class="signal-locked-content">
+              <p class="signal-preview-label">Prévia ilustrativa</p>
+              <img v-if="signalMinimumCents === 1000" class="signal-locked-banner" src="/banners/acesso-sinais-10.webp" alt="Para acessar os sinais, mantenha saldo disponível de pelo menos R$ 10,00." />
+              <div v-else class="signal-locked-message">
+                <Icon name="ph:lock-key-bold" />
+                <strong>Sinais de {{ currentGame.name }}</strong>
+                <p>Mantenha saldo disponível de pelo menos <b>{{ formattedSignalMinimum }}</b> para acessar os sinais.</p>
+              </div>
+              <button class="signal-deposit-btn" type="button" @click="openDepositModal">Depositar</button>
+            </div>
+          </div>
+          <div v-else-if="gameMode === 'sinais'" class="possivel-entrada-section" :style="{ border: `2px solid ${valuePrimaryColor}`, boxShadow: `0 6px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px ${valuePrimaryColor}40` }">
             <div class="possivel-entrada-header" :style="{ background: headerGradient, borderBottom: `2px solid ${valueSecondaryColor}` }">
             </div>
             <div class="possivel-entrada-content">
               <div class="entrada-indicator">
                 <div v-if="signalAccessState === 'checking'">Verificando acesso aos sinais...</div>
                 <div v-else-if="signalAccessState === 'error'">Não foi possível verificar seu acesso aos sinais. Tentaremos novamente.</div>
-                <div v-else-if="signalAccessState === 'denied'">Para acessar os sinais de {{ currentGame.name }}, deposite e mantenha saldo disponível de pelo menos {{ formattedSignalMinimum }}.</div>
                 <template v-else>
                 <div v-if="!sinal" class="entrada-message">{{ catalogadorUi.signalTitle }}</div>
                 <transition name="fade" mode="out-in">
@@ -1807,6 +1823,66 @@ useHead({
 }
 
 /* Possível Entrada styles */
+.signal-locked {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 15px;
+  border: 1px solid #7b248d;
+  border-radius: 12px;
+  background: #150b19;
+}
+
+.signal-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 18px;
+  filter: blur(5px);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.signal-preview strong { font-size: 32px; color: #f03ce5; }
+
+.signal-locked-content {
+  position: relative;
+  padding: 12px;
+  text-align: center;
+  background: rgba(13, 5, 17, 0.75);
+}
+
+.signal-preview-label {
+  margin: 0 0 8px;
+  color: #d7b9da;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.signal-locked-banner { display: block; width: 100%; height: auto; border-radius: 8px; }
+.signal-locked-message { padding: 12px; color: #fff; }
+.signal-locked-message :deep(svg) { display: block; margin: 0 auto 8px; color: #f03ce5; font-size: 26px; }
+.signal-locked-message strong { font-size: 17px; }
+.signal-locked-message p { margin: 8px 0 0; color: #e3d5e5; line-height: 1.4; font-size: 14px; }
+.signal-deposit-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #e400d4;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.signal-deposit-btn:hover { background: #f323e4; }
+.signal-deposit-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
 .possivel-entrada-section {
   background: linear-gradient(135deg, #2a2a2a 0%, #1f1f1f 100%);
   border-radius: 12px;
@@ -2907,8 +2983,8 @@ useHead({
     left: 0;
     right: 0;
     bottom: auto;
-    height: 70vh;
-    min-height: 70vh;
+    height: 56vh;
+    min-height: 320px;
     border-radius: 0;
     border: none;
     border-bottom: 1px solid #333;
@@ -3043,13 +3119,5 @@ useHead({
     margin-top: 16px;
   }
 }
-
-/* Os sinais não possuem trava por saldo/depósito. */
-
-
-
-
-
-
 
 </style>
