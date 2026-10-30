@@ -52,7 +52,6 @@
               <span>•••••• ••••••</span>
             </div>
             <div class="signal-locked-content">
-              <p class="signal-preview-label">Prévia ilustrativa</p>
               <img v-if="signalMinimumCents === 1000" class="signal-locked-banner" src="/banners/acesso-sinais-10.webp" alt="Para acessar os sinais, mantenha saldo disponível de pelo menos R$ 10,00." />
               <div v-else class="signal-locked-message">
                 <Icon name="ph:lock-key-bold" />
@@ -1854,14 +1853,6 @@ useHead({
   padding: 12px;
   text-align: center;
   background: rgba(13, 5, 17, 0.75);
-}
-
-.signal-preview-label {
-  margin: 0 0 8px;
-  color: #d7b9da;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .signal-locked-banner { display: block; width: 100%; height: auto; border-radius: 8px; }
