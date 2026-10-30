@@ -50,6 +50,10 @@
             </div>
             <div class="possivel-entrada-content">
               <div class="entrada-indicator">
+                <div v-if="signalAccessState === 'checking'">Verificando acesso aos sinais...</div>
+                <div v-else-if="signalAccessState === 'error'">Não foi possível verificar seu acesso aos sinais. Tentaremos novamente.</div>
+                <div v-else-if="signalAccessState === 'denied'">Para acessar os sinais de {{ currentGame.name }}, deposite e mantenha saldo disponível de pelo menos {{ formattedSignalMinimum }}.</div>
+                <template v-else>
                 <div v-if="!sinal" class="entrada-message">{{ catalogadorUi.signalTitle }}</div>
                 <transition name="fade" mode="out-in">
                   <div v-if="isLoadingSinal && !sinal" class="loading-spinner" key="loading-sinal">
@@ -58,6 +62,7 @@
                   <div v-else-if="sinal" class="sinal-value" key="sinal-value" :style="{ color: valueAccentColor }">{{ sinal }}</div>
                   <div v-else class="sinal-value aguardando" key="aguardando">{{ catalogadorUi.waitingLabel }}</div>
                 </transition>
+                </template>
               </div>
             </div>
           </div>
@@ -460,7 +465,7 @@ const refreshBalance = async () => {
     console.error('[jogo] Falha ao atualizar saldo:', err)
   }
 }
-const { startGame, fetchGameConfig, gameSignalConfig, isLoading: isLoadingGame, error: gameError, errorCode: gameErrorCode } = useGame()
+const { startGame, fetchGameConfig, isLoading: isLoadingGame, error: gameError, errorCode: gameErrorCode } = useGame()
 const gameErrorModalDismissed = ref(false)
 const showGameErrorModal = computed(() => gameErrorCode.value === 'START_GAME_REJECTED' && !gameErrorModalDismissed.value)
 
@@ -749,8 +754,7 @@ const iframeUrl = ref<string>('')
 // partir do IP autorizado do servidor.
 const CATALOGADOR_ENDPOINT = '/api/catalogador'
 
-// Config do WSS vem da API via fetchGameConfig (useGame)
-// gameSignalConfig é populado no loadGame antes de conectar o WS
+// Config do WSS é carregada após a verificação de acesso.
 
 // Possível Entrada - Variáveis
 const gameMode = ref('sinais') // 'sinais' | 'manual'
@@ -759,8 +763,6 @@ const valueSecondaryColor = ref('#0099cc')
 const valueAccentColor = ref('#66e0ff')
 const headerGradient = computed(() => `linear-gradient(135deg, ${valuePrimaryColor.value} 0%, ${valueSecondaryColor.value} 100%)`)
 const message = ref('Possível Entrada')
-// Os sinais são liberados independentemente de saldo ou depósito. Para reativar
-// essa regra no futuro, derive um canViewSignals de `balance` e aplique-o ao painel.
 const sinal = ref('')
 const tentativas = ref('')
 const greensCount = ref(0)  // número de tentativas/gales
@@ -771,6 +773,67 @@ let signalWs: WebSocket | null = null
 let signalReconnectTimer: ReturnType<typeof setTimeout> | null = null
 const SIGNAL_RECONNECT_MS = 3000
 let signalWsDestroyed = false
+let activeSignalConfig: { signalUrl: string; signalName: string; signalCollection?: string } | null = null
+let activeSignalGame: string | null = null
+const signalAccessState = ref<'checking' | 'allowed' | 'denied' | 'error'>('checking')
+const signalMinimumCents = ref(1000)
+const formattedSignalMinimum = computed(() => (signalMinimumCents.value / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))
+let accessGeneration = 0
+let accessInterval: ReturnType<typeof setInterval> | null = null
+let signalPageActive = false
+
+const clearSignal = () => {
+  sinal.value = ''
+  tentativas.value = ''
+  greensCount.value = 0
+  signalTarget.value = ''
+  assertividade.value = ''
+  message.value = 'Possível Entrada'
+  isLoadingSinal.value = false
+}
+
+const resetSignalAccess = () => {
+  disconnectSignalWs()
+  clearSignal()
+  activeSignalConfig = null
+  activeSignalGame = null
+}
+
+const checkSignalAccess = async () => {
+  const generation = ++accessGeneration
+  const game = gameId.value
+  signalAccessState.value = 'checking'
+  // Uma conexão já autorizada continua recebendo eventos durante a consulta,
+  // mas o template não mostra o conteúdo até a resposta autorizar novamente.
+  if (!signalPageActive || !isAuthenticated.value || (activeSignalGame && activeSignalGame !== game)) {
+    resetSignalAccess()
+  }
+  if (!signalPageActive || !isAuthenticated.value) return
+  try {
+    const result = await $fetch<{ allowed: boolean; minimumCents: number }>('/api/signal-access', { query: { game }, cache: 'no-store', timeout: 10000 })
+    if (!signalPageActive || generation !== accessGeneration || game !== gameId.value || !isAuthenticated.value) return
+    signalMinimumCents.value = result.minimumCents
+    if (!result.allowed) {
+      resetSignalAccess()
+      signalAccessState.value = 'denied'
+      return
+    }
+    if (!activeSignalConfig || activeSignalGame !== game) {
+      const config = await fetchGameConfig(game)
+      if (!signalPageActive || generation !== accessGeneration || game !== gameId.value || !isAuthenticated.value) return
+      if (!config) throw new Error('Configuração de sinais indisponível')
+      activeSignalConfig = config
+      activeSignalGame = game
+    }
+    signalAccessState.value = 'allowed'
+    connectSignalWs()
+  } catch {
+    if (signalPageActive && generation === accessGeneration) {
+      resetSignalAccess()
+      signalAccessState.value = 'error'
+    }
+  }
+}
 
 const setSignalFromWsStatus = (data: any) => {
   const status = String(data?.status || '').toLowerCase()
@@ -864,8 +927,9 @@ const buildSignalWsUrl = (baseUrl: string, name: string, collection?: string) =>
 }
 
 const connectSignalWs = () => {
-  const cfg = gameSignalConfig.value
-  if (!cfg?.signalUrl) return
+  const cfg = activeSignalConfig
+  if (!cfg?.signalUrl || signalAccessState.value !== 'allowed' || activeSignalGame !== gameId.value) return
+  if (signalWs && (signalWs.readyState === WebSocket.OPEN || signalWs.readyState === WebSocket.CONNECTING)) return
 
   // normaliza para o shape esperado internamente
   const url = cfg.signalUrl
@@ -896,9 +960,11 @@ const connectSignalWs = () => {
   // outra collection antes do subscribe ser processado.
   wsUrl = buildSignalWsUrl(wsUrl, name, collection)
 
-  signalWs = new WebSocket(wsUrl)
+  const ws = new WebSocket(wsUrl)
+  signalWs = ws
 
-  signalWs.onopen = () => {
+  ws.onopen = () => {
+    if (signalWs !== ws || !signalPageActive || !isAuthenticated.value || activeSignalGame !== gameId.value) return
     // Fallback para servidores que so assinam via mensagem; o subscribe e
     // idempotente quando a query string ja resolveu a assinatura.
     const payload: Record<string, string> = {
@@ -910,21 +976,25 @@ const connectSignalWs = () => {
       payload.collection = collection
     }
 
-    signalWs?.send(JSON.stringify(payload))
+    ws.send(JSON.stringify(payload))
   }
 
-  signalWs.onmessage = (event) => {
-    handleWsMessage(event.data)
+  ws.onmessage = (event) => {
+    if (signalWs === ws && signalPageActive && isAuthenticated.value && activeSignalGame === gameId.value &&
+        (signalAccessState.value === 'allowed' || signalAccessState.value === 'checking')) handleWsMessage(event.data)
   }
 
-  signalWs.onerror = () => {
-    isLoadingSinal.value = false
+  ws.onerror = () => {
+    if (signalWs === ws) isLoadingSinal.value = false
   }
 
-  signalWs.onclose = () => {
-    if (signalWsDestroyed) return
+  ws.onclose = () => {
+    if (signalWs !== ws) return
+    signalWs = null
+    if (signalWsDestroyed || signalAccessState.value !== 'allowed') return
 
     signalReconnectTimer = setTimeout(() => {
+      signalReconnectTimer = null
       connectSignalWs()
     }, SIGNAL_RECONNECT_MS)
   }
@@ -1477,13 +1547,7 @@ const loadGame = async () => {
     return
   }
 
-  // 1. Busca config de sinais da API (signalUrl, signalName, signalCollection)
-  await fetchGameConfig(gameId.value)
-
-  // 2. Conecta ao WSS agora que gameSignalConfig está populado
-  connectSignalWs()
-
-  // 3. Inicia o jogo
+  // Inicia o jogo independentemente da autorização dos sinais.
   const url = await startGame(gameId.value)
   if (url) {
     iframeUrl.value = url
@@ -1502,7 +1566,12 @@ watch(gameErrorCode, (code) => {
 
 // Carrega o jogo ao montar o componente
 onMounted(() => {
+  signalPageActive = true
   loadGame()
+  checkSignalAccess()
+  accessInterval = setInterval(checkSignalAccess, 15000)
+  window.addEventListener('focus', checkSignalAccess)
+  window.addEventListener('pageshow', checkSignalAccess)
   fetchResults()
   refreshBalance()
 
@@ -1512,6 +1581,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  signalPageActive = false
+  accessGeneration++
+  if (accessInterval) clearInterval(accessInterval)
+  window.removeEventListener('focus', checkSignalAccess)
+  window.removeEventListener('pageshow', checkSignalAccess)
+  clearSignal()
   if (resultsInterval) {
     clearInterval(resultsInterval)
     resultsInterval = null
@@ -1524,11 +1599,13 @@ onUnmounted(() => {
 })
 
 // Recarrega se a autenticação mudar (ex: login na mesma aba)
+watch(gameId, () => { if (signalPageActive) checkSignalAccess() }, { flush: 'sync' })
 watch(isAuthenticated, (newVal) => {
+  if (signalPageActive) checkSignalAccess()
   if (newVal && !iframeUrl.value) {
     loadGame()
   }
-})
+}, { flush: 'sync' })
 
 useHead({
   title: () => `${currentGame.value.name} - Rainha da Bet`

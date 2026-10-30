@@ -303,6 +303,16 @@
                 <div class="adm-panel-head">
                     <h2><Icon name="ph:gear-six-bold" /> Configurações</h2>
                 </div>
+                <div class="adm-maintenance">
+                    <div class="adm-maintenance-head"><div><strong>Acesso aos sinais</strong><p>Saldo disponível mínimo em BRL por jogo. E-mails autorizados independem do saldo.</p></div></div>
+                    <div v-for="game in signalGames" :key="game.id">
+                        <label class="adm-field-label" :for="`signal-${game.id}`">{{ game.displayName }} (R$)</label>
+                        <input :id="`signal-${game.id}`" v-model="signalMinimums[game.id]" type="text" inputmode="decimal" class="adm-input adm-maintenance-input" />
+                    </div>
+                    <label class="adm-field-label" for="signal-emails">E-mails autorizados (um por linha)</label>
+                    <textarea id="signal-emails" v-model="signalEmails" rows="5" class="adm-input adm-maintenance-input adm-textarea"></textarea>
+                    <button class="adm-btn-primary" :disabled="savingSignalSettings || !signalSettingsLoaded" @click="saveSignalSettings">{{ savingSignalSettings ? 'Salvando...' : 'Salvar acesso aos sinais' }}</button>
+                </div>
                 <div class="adm-maintenance" :class="{ active: maintenanceEnabled }">
                     <div class="adm-maintenance-head">
                         <div>
@@ -374,6 +384,7 @@
 </template>
 
 <script setup lang="ts">
+import { GAME_ROUTE_DEFINITIONS } from "~/constants/gameRoutes";
 definePageMeta({ middleware: "admin" });
 
 interface AppUser {
@@ -442,6 +453,28 @@ const ftd = reactive({ email: "", amount: null as number | null });
 const savingFtd = ref(false);
 
 // --- Configurações ---
+const signalGames = Object.values(GAME_ROUTE_DEFINITIONS);
+const signalMinimums = ref<Record<string, string>>({});
+const signalEmails = ref('');
+const savingSignalSettings = ref(false);
+const signalSettingsLoaded = ref(false);
+const fetchSignalSettings = async () => {
+    try {
+        const result = await adminFetch<{ minimums: Record<string, number>; emails: string[] }>('/api/admin/signal-access');
+        signalMinimums.value = Object.fromEntries(Object.entries(result.minimums).map(([id, cents]) => [id, (cents / 100).toFixed(2)]));
+        signalEmails.value = result.emails.join('\n');
+        signalSettingsLoaded.value = true;
+    } catch { signalSettingsLoaded.value = false; showToast('Erro ao carregar acesso aos sinais.', 'error'); }
+};
+const saveSignalSettings = async () => {
+    savingSignalSettings.value = true;
+    try {
+        await adminFetch('/api/admin/signal-access', { method: 'POST', body: { minimums: signalMinimums.value, emails: signalEmails.value.split('\n').map(e => e.trim()).filter(Boolean) } });
+        showToast('Acesso aos sinais salvo.');
+        await fetchSignalSettings();
+    } catch (error: any) { showToast(error?.data?.message || 'Erro ao salvar acesso aos sinais.', 'error'); }
+    finally { savingSignalSettings.value = false; }
+};
 const supportInput = ref("");
 const supportHref = ref("");
 const savingSupport = ref(false);
@@ -619,7 +652,7 @@ const saveMaintenance = async () => {
     }
 };
 
-const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity(), fetchSupport(), fetchMaintenance()]);
+const refreshAll = () => Promise.all([fetchStats(), fetchUsers(), fetchDeposits(), fetchActivity(), fetchSupport(), fetchMaintenance(), fetchSignalSettings()]);
 
 // --- Filtros (debounce na busca) ---
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
